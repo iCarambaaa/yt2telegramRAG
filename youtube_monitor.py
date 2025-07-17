@@ -15,32 +15,25 @@ from datetime import datetime
 import yt_dlp
 import openai
 from telegram import Bot
+from dotenv import load_dotenv
 
 class YouTubeMonitor:
-    def __init__(self, config_path="/root/youtube_monitor_config.json"):
-        self.config_path = config_path
+    def __init__(self):
+        load_dotenv()
         self.config = self.load_config()
-        self.db_path = "/root/youtube_monitor.db"
+        self.db_path = os.getenv("DB_PATH", "/root/youtube_monitor.db")
         self.init_database()
         
     def load_config(self):
-        """Load configuration from JSON file"""
-        if os.path.exists(self.config_path):
-            with open(self.config_path, 'r') as f:
-                return json.load(f)
-        else:
-            config = {
-                "youtube_api_key": "YOUR_YOUTUBE_API_KEY_HERE",
-                "telegram_bot_token": "YOUR_TELEGRAM_BOT_TOKEN_HERE",
-                "telegram_chat_id": "YOUR_CHAT_ID_HERE",
-                "openai_api_key": "YOUR_OPENAI_API_KEY_HERE",
-                "channel_id": "YOUR_YOUTUBE_CHANNEL_ID_HERE",
-                "check_interval_hours": 24
-            }
-            with open(self.config_path, 'w') as f:
-                json.dump(config, f, indent=2)
-            print(f"✅ Created config file at {self.config_path}")
-            return config
+        """Load configuration from environment variables"""
+        return {
+            "youtube_api_key": os.getenv("YOUTUBE_API_KEY"),
+            "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN"),
+            "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID"),
+            "openai_api_key": os.getenv("OPENAI_API_KEY"),
+            "channel_id": os.getenv("CHANNEL_ID"),
+            "check_interval_hours": int(os.getenv("CHECK_INTERVAL_HOURS", 24))
+        }
     
     def init_database(self):
         """Initialize SQLite database"""
