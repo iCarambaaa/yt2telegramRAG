@@ -1,2 +1,2 @@
-# Ignore config file with secrets
+# Ignore config file and secrets
 .env

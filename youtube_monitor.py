@@ -16,6 +16,16 @@ import yt_dlp
 import openai
 from telegram import Bot
 from dotenv import load_dotenv
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler("yt2telegramRAG.log"),
+        logging.StreamHandler()
+    ]
+)
 
 class YouTubeMonitor:
     def __init__(self):
@@ -23,6 +33,7 @@ class YouTubeMonitor:
         self.config = self.load_config()
         self.db_path = os.getenv("DB_PATH", "/root/youtube_monitor.db")
         self.init_database()
+        logging.info("YouTubeMonitor initialized.")
         
     def load_config(self):
         """Load configuration from environment variables"""
@@ -32,7 +43,8 @@ class YouTubeMonitor:
             "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID"),
             "openai_api_key": os.getenv("OPENAI_API_KEY"),
             "channel_id": os.getenv("CHANNEL_ID"),
-            "check_interval_hours": int(os.getenv("CHECK_INTERVAL_HOURS", 24))
+            "check_interval_hours": int(os.getenv("CHECK_INTERVAL_HOURS", 24)),
+            "openai_model": os.getenv("OPENAI_MODEL" "gpt-4.1-2025-04-14")
         }
     
     def init_database(self):
@@ -78,9 +90,10 @@ class YouTubeMonitor:
                         'description': entry.get('description', '')
                     })
             conn.close()
+            logging.info(f"Found {len(new_videos)} new videos.")
             return new_videos
         except Exception as e:
-            print(f"❌ yt-dlp error: {e}")
+            logging.error(f"yt-dlp error: {e}")
             return []
     
     def get_video_transcript(self, video_id):
@@ -115,7 +128,7 @@ class YouTubeMonitor:
                         return automatic_captions[chosen_lang][0]['url']
                 return None
         except Exception as e:
-            print(f"❌ Error getting transcript: {e}")
+            logging.error(f"Error getting transcript: {e}")
             return None
     
     def extract_essential_info(self, transcript, title, description):
@@ -141,7 +154,7 @@ class YouTubeMonitor:
             """
             
             response = client.chat.completions.create(
-                model="gpt-4-1106-preview",
+                model=self.config["openai_model"],
                 messages=[
                     {"role": "system", "content": "Summarize YouTube videos concisely."},
                     {"role": "user", "content": prompt}
@@ -149,9 +162,10 @@ class YouTubeMonitor:
                 max_tokens=300
             )
             
+            logging.info(f"Summary generated for video: {title}")
             return response.choices[0].message.content
-            
         except Exception as e:
+            logging.error(f"OpenAI summary error: {str(e)}")
             return f"Summary unavailable: {str(e)}"
     
     def send_telegram_message(self, message):
@@ -163,8 +177,9 @@ class YouTubeMonitor:
                 text=message,
                 parse_mode='Markdown'
             )
+            logging.info("Telegram message sent.")
         except Exception as e:
-            print(f"❌ Telegram error: {e}")
+            logging.error(f"Telegram error: {e}")
     
     def mark_video_processed(self, video, summary, transcript):
         """Mark video as processed and store transcript"""
@@ -183,18 +198,20 @@ class YouTubeMonitor:
         ))
         conn.commit()
         conn.close()
+        logging.info(f"Video marked as processed: {video['title']}")
     
     def process_new_videos(self):
-        """Process new videos"""
-        print(f"🔍 Checking for new videos at {datetime.now()}")
+        """Process up to 10 new videos"""
+        logging.info("Checking for new videos...")
         new_videos = self.get_new_videos()
         
         if not new_videos:
-            print("ℹ️  No new videos found")
+            logging.info("No new videos found.")
             return
         
-        for video in new_videos:
-            print(f"🔄 Processing: {video['title']}")
+        # Only process up to 10 new videos
+        for video in new_videos[:10]:
+            logging.info(f"Processing video: {video['title']}")
             
             transcript = self.get_video_transcript(video['video_id'])
             if not transcript:
@@ -213,13 +230,13 @@ class YouTubeMonitor:
             
             self.send_telegram_message(message)
             self.mark_video_processed(video, summary, transcript)
-            print(f"✅ Sent: {video['title']}")
+            logging.info(f"✅ Sent: {video['title']}")
     
     def run_scheduler(self):
         """Run the scheduler"""
         schedule.every(self.config.get('check_interval_hours', 24)).hours.do(self.process_new_videos)
         
-        print("🚀 YouTube Monitor started...")
+        logging.info("YouTube Monitor started...")
         self.process_new_videos()  # Run once immediately
         
         while True:
@@ -228,4 +245,4 @@ class YouTubeMonitor:
 
 if __name__ == "__main__":
     monitor = YouTubeMonitor()
-    monitor.run_scheduler()
+    monitor.process_new_videos()
