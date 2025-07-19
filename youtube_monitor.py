@@ -6,9 +6,7 @@ uses AI to summarize content, and sends notifications via Telegram.
 """
 
 import os
-import json
 import sqlite3
-import requests
 import schedule
 import time
 from datetime import datetime
@@ -38,12 +36,11 @@ class YouTubeMonitor:
     def load_config(self):
         """Load configuration from environment variables"""
         return {
-            "youtube_api_key": os.getenv("YOUTUBE_API_KEY"),
             "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN"),
             "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID"),
-            "openai_api_key": os.getenv("OPENAI_API_KEY"),
+            "openai_api_key": os.getenv("LLM_PROVIDER_API_KEY"),
             "channel_id": os.getenv("CHANNEL_ID"),
-            "check_interval_hours": int(os.getenv("CHECK_INTERVAL_HOURS", 24)),
+            "openai_base_url": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
             "openai_model": os.getenv("OPENAI_MODEL" "gpt-4.1-2025-04-14")
         }
     
@@ -134,7 +131,10 @@ class YouTubeMonitor:
     def extract_essential_info(self, transcript, title, description):
         """Use OpenAI to extract essential information"""
         try:
-            client = openai.OpenAI(api_key=self.config['openai_api_key'])
+            client = openai.OpenAI(
+                api_key=self.config['openai_api_key'],
+                base_url=self.config.get('openai_base_url', 'https://api.openai.com/v1')
+            )
             
             prompt = f"""
             Analyze this YouTube video and provide a concise summary:
