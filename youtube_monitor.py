@@ -6,6 +6,7 @@ uses AI to summarize content, and sends notifications via Telegram.
 """
 
 import os
+import requests
 import sqlite3
 import schedule
 import time
@@ -35,14 +36,21 @@ class YouTubeMonitor:
         
     def load_config(self):
         """Load configuration from environment variables"""
-        return {
-            "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN"),
-            "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID"),
-            "openai_api_key": os.getenv("LLM_PROVIDER_API_KEY"),
-            "channel_id": os.getenv("CHANNEL_ID"),
-            "openai_base_url": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-            "openai_model": os.getenv("OPENAI_MODEL" "gpt-4.1-2025-04-14")
-        }
+        config = {
+                "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN"),
+                "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID"), 
+                "openai_api_key": os.getenv("LLM_PROVIDER_API_KEY"),
+                "channel_id": os.getenv("CHANNEL_ID"),
+                "openai_base_url": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+                "openai_model": os.getenv("OPENAI_MODEL", "gpt-4.1")
+            }
+        # Validate required fields
+        required = ["telegram_bot_token", "telegram_chat_id", "openai_api_key", "channel_id"]
+        missing = [k for k in required if not config[k]]
+        if missing:
+                raise ValueError(f"Missing required environment variables: {missing}")
+            
+        return config
     
     def init_database(self):
         """Initialize SQLite database"""
@@ -93,40 +101,56 @@ class YouTubeMonitor:
             logging.error(f"yt-dlp error: {e}")
             return []
     
-    def get_video_transcript(self, video_id):
-        """Get video transcript using yt-dlp, stick to original language if Russian or German, else use English."""
-        try:
-            ydl_opts = {
-                'skip_download': True,
-                'writesubtitles': True,
-                'writeautomaticsub': True,
-                'outtmpl': f'/tmp/{video_id}.%(ext)s',
-            }
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-                subtitles = info.get('subtitles', {})
-                automatic_captions = info.get('automatic_captions', {})
-                # Detect original language
-                original_lang = info.get('language', '')
-                # Fallback: try to detect from available subtitles
-                available_langs = list(subtitles.keys()) + list(automatic_captions.keys())
-                if 'ru' in available_langs:
-                    chosen_lang = 'ru'
-                elif 'de' in available_langs:
-                    chosen_lang = 'de'
-                elif 'en' in available_langs:
-                    chosen_lang = 'en'
-                else:
-                    chosen_lang = available_langs[0] if available_langs else None
-                if chosen_lang:
-                    if chosen_lang in subtitles:
-                        return subtitles[chosen_lang][0]['url']
-                    elif chosen_lang in automatic_captions:
-                        return automatic_captions[chosen_lang][0]['url']
-                return None
-        except Exception as e:
-            logging.error(f"Error getting transcript: {e}")
-            return None
+def get_video_transcript(self, video_id):
+    """Get video transcript using yt-dlp with better subtitle handling."""
+    try:
+        ydl_opts = {
+            'writesubtitles': True,
+            'writeautomaticsub': True,
+            'subtitleslangs': ['ru', 'de', 'en'],  # Preferred languages
+            'skip_download': True,
+            'outtmpl': f'/tmp/{video_id}',
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+            
+            # Try to download subtitles directly
+            ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
+            
+            # Check for downloaded subtitle files
+            for lang in ['ru', 'de', 'en']:
+                subtitle_file = f'/tmp/{video_id}.{lang}.vtt'
+                if os.path.exists(subtitle_file):
+                    with open(subtitle_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        os.remove(subtitle_file)  # Clean up
+                        return self._parse_subtitle_text(content)
+        
+        return None
+    except Exception as e:
+        logging.error(f"Error getting transcript for {video_id}: {e}")
+        return None
+
+
+    def _parse_subtitle_text(self, subtitle_content):
+        """Parse .vtt or .srt subtitle content to plain text."""
+        import re
+        # Remove WEBVTT header or SRT numbering/timestamps
+        lines = subtitle_content.splitlines()
+        text_lines = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith('WEBVTT') or re.match(r'^\d+$', line):
+                continue
+            if re.match(r'\d{2}:\d{2}:\d{2}', line):
+                continue
+            if re.match(r'\d{2}:\d{2}\.\d{3} -->', line):
+                continue
+            text_lines.append(line)
+        return ' '.join(text_lines)
     
     def extract_essential_info(self, transcript, title, description):
         """Use OpenAI to extract essential information"""
