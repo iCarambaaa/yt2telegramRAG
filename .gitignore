@@ -1,2 +1,4 @@
 # Ignore config file and secrets
 .env
+__pycache__
+.voidrules

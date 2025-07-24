@@ -4,6 +4,10 @@ import openai
 from dotenv import load_dotenv
 from telegram.ext import Updater, MessageHandler, Filters
 import logging
+try:
+    import yaml
+except ImportError:
+    raise ImportError("pyyaml is required for prompt loading. Install with: pip install pyyaml")
 
 load_dotenv()
 DB_PATH = os.getenv("DB_PATH", "/root/youtube_monitor.db")
@@ -15,6 +19,25 @@ logging.basicConfig(
         logging.FileHandler("yt2telegramRAG-bot.log"),
         logging.StreamHandler()
     ]
+)
+
+def load_prompt():
+    prompt_file = os.getenv("TG_BOT_PROMPT_FILE")
+    if prompt_file and os.path.exists(prompt_file):
+        with open(prompt_file, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data.get('qa_prompt')
+    return None
+
+BOT_PROMPT_TEMPLATE = load_prompt() or (
+    "You are a helpful assistant for a YouTube-to-Telegram RAG bot.\n"
+    "Use the transcript and previous video summaries to answer user questions concisely and informatively.\n"
+    "If the answer is not in the context, say you don't know.\n\n"
+    "Context:\n"
+    "Latest video transcript:\n{transcript}\n\n"
+    "Previous video summaries:\n{summaries}\n\n"
+    "User question:\n{question}\n\n"
+    "Answer:"
 )
 
 def get_context():
@@ -33,10 +56,9 @@ def get_context():
 
 def answer_question(question, transcript, summaries):
     try:
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = openai.OpenAI(api_key=os.getenv("LLM_PROVIDER_API_KEY"))
         model = os.getenv("OPENAI_MODEL_BOT", "gpt-4-1106-preview")
-        context = f"Latest video transcript:\n{transcript}\n\nPrevious video summaries:\n" + "\n---\n".join(summaries)
-        prompt = f"{context}\n\nUser question: {question}\n\nAnswer:"
+        prompt = BOT_PROMPT_TEMPLATE.format(transcript=transcript, summaries="\n---\n".join(summaries), question=question)
         response = client.chat.completions.create(
             model=model,
             messages=[

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# flake8: noqa
 """
 YouTube Channel Monitor with Telegram Notifications
 Runs once per invocation (ideal for cron).
@@ -27,11 +28,13 @@ OPENAI_MODEL         – Chat model name (default: gpt-4o-mini)
 """
 
 from __future__ import annotations
+from ratelimit import limits, sleep_and_retry
 
 import logging
 import os
 import re
 import sqlite3
+import tempfile
 from datetime import datetime
 from typing import Dict, List
 
@@ -40,6 +43,10 @@ from dotenv import load_dotenv
 from telegram import Bot
 from youtube_transcript_api import NoTranscriptFound, TranscriptsDisabled, YouTubeTranscriptApi
 import openai
+try:
+    import yaml
+except ImportError:
+    raise ImportError("pyyaml is required for prompt loading. Install with: pip install pyyaml")
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -190,24 +197,29 @@ class TranscriptExtractor:
 
     @staticmethod
     def from_ytdlp(video_id: str) -> str | None:
+        temp_dir = tempfile.gettempdir()
         ydl_opts = {
             "writesubtitles": True,
             "writeautomaticsub": True,
             "subtitleslangs": YOUTUBE_SUB_LANGS,
             "skip_download": True,
-            "outtmpl": f"/tmp/{video_id}",
+            "outtmpl": os.path.join(temp_dir, f"{video_id}"),
             "quiet": True,
         }
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
             for lang in YOUTUBE_SUB_LANGS:
-                path = f"/tmp/{video_id}.{lang}.vtt"
+                path = os.path.join(temp_dir, f"{video_id}.{lang}.vtt")
                 if os.path.exists(path):
-                    with open(path, "r", encoding="utf-8") as fh:
-                        vtt = fh.read()
-                    os.remove(path)
-                    return TranscriptExtractor._parse_vtt(vtt)
+                    try:
+                        with open(path, "r", encoding="utf-8") as fh:
+                            vtt = fh.read()
+                        return TranscriptExtractor._parse_vtt(vtt)
+                    finally:
+                        # Clean up the temporary file even if parsing fails
+                        if os.path.exists(path):
+                            os.remove(path)
         except Exception as e:
             logging.warning(f"yt-dlp subtitle error for {video_id}: {e}")
         return None
@@ -233,25 +245,29 @@ class TranscriptExtractor:
 
 
 # ---------------------------------------------------------------------------
-# Summarisation
+# Prompt loader
+# ---------------------------------------------------------------------------
+def load_prompt():
+    prompt_file = os.getenv("YT2TG_PROMPT_FILE")
+    if prompt_file and os.path.exists(prompt_file):
+        with open(prompt_file, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data.get('summary_prompt')
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Summarization
 # ---------------------------------------------------------------------------
 class Summarizer:
     def __init__(self, api_key: str, base_url: str, model: str):
         self.client = openai.OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
-
-    def summarize(
-        self,
-        title: str,
-        description: str,
-        transcript: str,
-        max_tokens: int = 300,
-    ) -> str:
-        prompt = (
+        self.prompt_template = load_prompt() or (
             "Analyze this YouTube video and provide a concise summary:\n\n"
-            f"Title: {title}\n"
-            f"Description: {description}\n"
-            f"Transcript: {transcript[:4000]}\n\n"
+            "Title: {title}\n"
+            "Description: {description}\n"
+            "Transcript: {transcript}\n\n"
             "Provide:\n"
             "1. Main topics\n"
             "2. Key points\n"
@@ -260,6 +276,15 @@ class Summarizer:
             "5. Your opinion on the video's value\n\n"
             "Format as a Telegram‑friendly message with emojis."
         )
+
+    def summarize(
+        self,
+        title: str,
+        description: str,
+        transcript: str,
+        max_tokens: int = 300,
+    ) -> str:
+        prompt = self.prompt_template.format(title=title, description=description, transcript=transcript[:4000])
         try:
             resp = self.client.chat.completions.create(
                 model=self.model,
@@ -272,7 +297,7 @@ class Summarizer:
             return resp.choices[0].message.content
         except Exception as e:
             logging.error(f"OpenAI summarisation error: {e}")
-            return "Summary unavailable."""
+            return "Summary unavailable."
 
 
 # ---------------------------------------------------------------------------
@@ -303,7 +328,11 @@ def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
-    )
+        handlers=[
+            logging.FileHandler("yt2telegramRAG.log"),
+            logging.StreamHandler()
+        ]
+)
 
     cfg = Config()
     db = Database(cfg.db_path)

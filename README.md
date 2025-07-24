@@ -14,6 +14,7 @@ A YouTube-to-Telegram RAG (Retrieval-Augmented Generation) system that:
 - No YouTube API key required (uses yt-dlp)
 - Multi-language transcript support (Russian, German, English)
 - All configuration via `.env` file
+- Prompts are separated into YAML files for easy editing (`prompts/` directory)
 - SQLite database for persistent storage
 - Logging to file and console
 - Modular: monitor and bot run as separate scripts
@@ -31,7 +32,8 @@ pip install -r requirements.txt
 ### 2. Configure Environment
 
 - Copy `.env.example` to `.env` and fill in your secrets:
-  - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `OPENAI_API_KEY`, `CHANNEL_ID`, `OPENAI_MODEL`, `OPENAI_MODEL_BOT`
+  - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `LLM_PROVIDER_API_KEY`, `CHANNEL_ID`, `OPENAI_MODEL`, `OPENAI_MODEL_BOT`
+  - Set `YOUTUBE2TELEGRAM_PROMPT_FILE` and `TG_BOT_PROMPT_FILE` to point to your YAML prompt files (see `prompts/` directory)
 - Never commit your real `.env` to git.
 
 ### 3. Database
@@ -43,26 +45,26 @@ pip install -r requirements.txt
 
 ## Usage
 
-### Monitor Script (youtube_monitor.py)
+### Monitor Script (`youtube2telegram.py`)
 
 - Processes up to 10 new videos per run
 - Sends summaries to Telegram
 - To run once (for cron):
   ```bash
-  python3 youtube_monitor.py
+  python3 youtube2telegram.py
   ```
 - Example crontab (daily at 8am):
   ```
-  0 8 * * * /usr/bin/python3 /path/to/yt2telegramRAG/youtube_monitor.py >> /path/to/yt2telegramRAG/monitor.log 2>&1
+  0 8 * * * /usr/bin/python3 /path/to/yt2telegramRAG/youtube2telegram.py >> /path/to/yt2telegramRAG/monitor.log 2>&1
   ```
 
-### Bot Script (bot.py)
+### Bot Script (`tg_bot.py`)
 
 - Listens for user questions in Telegram
 - Answers using latest transcript and all previous summaries
 - To run persistently:
   ```bash
-  python3 bot.py
+  python3 tg_bot.py
   ```
 - Example systemd service:
 
@@ -74,12 +76,34 @@ pip install -r requirements.txt
   [Service]
   Type=simple
   WorkingDirectory=/path/to/yt2telegramRAG
-  ExecStart=/usr/bin/python3 /path/to/yt2telegramRAG/bot.py
+  ExecStart=/usr/bin/python3 /path/to/yt2telegramRAG/tg_bot.py
   Restart=always
   User=youruser
 
   [Install]
   WantedBy=multi-user.target
+  ```
+
+---
+
+## Prompts
+
+- Prompts for both scripts are stored in YAML files in the `prompts/` directory.
+- Set the environment variables `YOUTUBE2TELEGRAM_PROMPT_FILE` and `TG_BOT_PROMPT_FILE` to point to these files.
+- Example YAML for `prompts/youtube2telegram.yml`:
+
+  ```yaml
+  summary_prompt: |
+    Analyze this YouTube video and provide a concise summary:
+    ...
+  ```
+
+  - Example YAML for `prompts/bot.yml`:
+
+  ```yaml
+  qa_prompt: |
+    You are a helpful assistant for a YouTube-to-Telegram RAG bot.
+    ...
   ```
 
 ---

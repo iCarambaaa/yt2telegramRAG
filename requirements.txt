@@ -3,4 +3,6 @@ yt-dlp
 openai
 python-telegram-bot
 schedule
-requests
+youtube-transcript-api
+ratelimit
+pyyaml
