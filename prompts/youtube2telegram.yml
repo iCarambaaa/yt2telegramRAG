@@ -3,7 +3,7 @@ summary_prompt: |
 
   Title: {title}
   Description: {description}
-  Transcript: {transcript}
+  Subtitles: {subtitles}
 
   Provide:
   1. Main topics

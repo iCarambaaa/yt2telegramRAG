@@ -2,3 +2,7 @@
 .env
 __pycache__
 .voidrules
+prompts/*/
+cookies.txt
+DBs/*
+yt2telegramRAG.log

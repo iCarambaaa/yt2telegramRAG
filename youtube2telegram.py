@@ -8,8 +8,7 @@ Features
 --------
 * Fetches latest channel videos via yt‑dlp (no YouTube Data API key).
 * Skips videos already processed using an on‑disk SQLite database.
-* Transcript extraction prefers YouTubeTranscriptApi; falls back to
-  yt‑dlp subtitle download when necessary.
+* Extraction yt‑dlp subtitle download.
 * Summarises via OpenAI ChatCompletion.
 * Sends MarkdownV2‑formatted notifications to Telegram.
 
@@ -41,7 +40,7 @@ from typing import Dict, List
 import yt_dlp
 from dotenv import load_dotenv
 from telegram import Bot
-from youtube_transcript_api import NoTranscriptFound, TranscriptsDisabled, YouTubeTranscriptApi
+#from youtube_transcript_api import NoTranscriptFound, TranscriptsDisabled, YouTubeTranscriptApi
 import openai
 try:
     import yaml
@@ -52,8 +51,8 @@ except ImportError:
 # Constants
 # ---------------------------------------------------------------------------
 DEFAULT_DB_PATH = os.path.expanduser("~/youtube_monitor.db")
-YOUTUBE_SUB_LANGS = ["ru", "de", "en"]
-MAX_NEW_VIDEOS = 10
+YOUTUBE_SUB_LANGS = ["de|ru|en"]
+MAX_NEW_VIDEOS = 1
 TELEGRAM_PARSE_MODE = "MarkdownV2"
 SUMMARY_TEMPLATE = (
     "🎥 *New YouTube Video*\n\n"
@@ -83,6 +82,7 @@ class Config:
         self.openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         self.openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.db_path: str = os.getenv("DB_PATH", DEFAULT_DB_PATH)
+        self.cookies_file: str | None = os.getenv("COOKIES_FILE")
 
         missing = [name for name in (
             "telegram_bot_token",
@@ -99,6 +99,7 @@ class Config:
 # ---------------------------------------------------------------------------
 class Database:
     def __init__(self, path: str) -> None:
+        logging.info(f"Initializing database at: {path}")
         self.conn = sqlite3.connect(path)
         self.conn.execute(
             """
@@ -108,17 +109,21 @@ class Database:
                 published_at TEXT,
                 processed_at TEXT,
                 summary TEXT,
-                transcript TEXT
+                subtitles TEXT
             )
             """
         )
         self.conn.commit()
+        logging.info("Database initialized successfully")
 
     def is_processed(self, video_id: str) -> bool:
+        logging.debug(f"Checking if video {video_id} is already processed")
         cur = self.conn.execute(
             "SELECT 1 FROM processed_videos WHERE video_id = ?", (video_id,)
         )
-        return cur.fetchone() is not None
+        result = cur.fetchone() is not None
+        logging.debug(f"Video {video_id} processed status: {result}")
+        return result
 
     def mark_processed(
         self,
@@ -126,12 +131,13 @@ class Database:
         title: str,
         published_at: str,
         summary: str,
-        transcript: str,
+        subtitles: str,
     ) -> None:
+        logging.info(f"Marking video {video_id} as processed in database")
         self.conn.execute(
             """
             INSERT INTO processed_videos (
-                video_id, title, published_at, processed_at, summary, transcript
+                video_id, title, published_at, processed_at, summary, subtitles
             ) VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
@@ -140,12 +146,14 @@ class Database:
                 published_at,
                 datetime.utcnow().isoformat(),
                 summary,
-                transcript,
+                subtitles,
             ),
         )
         self.conn.commit()
+        logging.info(f"Successfully marked video {video_id} as processed")
 
     def close(self) -> None:
+        logging.info("Closing database connection")
         self.conn.close()
 
 
@@ -153,22 +161,35 @@ class Database:
 # YouTube helpers
 # ---------------------------------------------------------------------------
 class YouTubeClient:
-    def __init__(self, channel_id: str):
+    def __init__(self, channel_id: str, cookies_file: str | None = None):
+        logging.info(f"Initializing YouTube client for channel: {channel_id}")
         self.channel_id = channel_id
+        self.cookies_file = cookies_file
+        logging.info(f"Cookies file: {cookies_file}")
 
     def get_latest_videos(self) -> List[Dict]:
         """Return metadata for the latest MAX_NEW_VIDEOS uploads."""
+        logging.info(f"Fetching latest videos from channel: {self.channel_id}")
         ydl_opts = {
             "extract_flat": True,
             "skip_download": True,
             "quiet": True,
         }
+        
+        if self.cookies_file and os.path.exists(self.cookies_file):
+            logging.info(f"Using cookies file: {self.cookies_file}")
+            ydl_opts["cookiefile"] = self.cookies_file
+        
         channel_url = f"https://www.youtube.com/channel/{self.channel_id}/videos"
+        logging.info(f"Fetching from URL: {channel_url}")
+        
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            logging.info("Extracting channel info...")
             info = ydl.extract_info(channel_url, download=False)
             entries = info.get("entries", [])
+            logging.info(f"Found {len(entries)} total entries")
 
-        return [
+        videos = [
             {
                 "video_id": e["id"],
                 "title": e.get("title", ""),
@@ -177,71 +198,66 @@ class YouTubeClient:
             }
             for e in entries[:MAX_NEW_VIDEOS]
         ]
+        logging.info(f"Returning {len(videos)} latest videos")
+        return videos
 
 
-class TranscriptExtractor:
-    """Obtain a transcript via Transcript API first, yt‑dlp fallback second."""
+class SubtitleExtractor:
+    """Extract subtitles directly via yt-dlp subtitle download."""
 
-    @staticmethod
-    def from_api(video_id: str) -> str | None:
-        try:
-            segments = YouTubeTranscriptApi.get_transcript(
-                video_id, languages=YOUTUBE_SUB_LANGS
-            )
-            return " ".join(seg["text"] for seg in segments)
-        except (TranscriptsDisabled, NoTranscriptFound):
-            return None
-        except Exception as e:
-            logging.warning(f"Transcript API error for {video_id}: {e}")
-            return None
+    def __init__(self, cookies_file: str | None = None):
+        logging.info("Initializing SubtitleExtractor")
+        self.cookies_file = cookies_file
 
-    @staticmethod
-    def from_ytdlp(video_id: str) -> str | None:
+    def get_subtitles(self, video_id: str) -> str | None:
+        """Extract subtitles directly from YouTube videos."""
+        logging.info(f"Starting subtitle extraction for video: {video_id}")
         temp_dir = tempfile.gettempdir()
+        logging.info(f"Using temp directory: {temp_dir}")
+        
         ydl_opts = {
-            "writesubtitles": True,
+           # "writesubtitles": True,
             "writeautomaticsub": True,
-            "subtitleslangs": YOUTUBE_SUB_LANGS,
+           # "subtitleslangs": YOUTUBE_SUB_LANGS,
             "skip_download": True,
             "outtmpl": os.path.join(temp_dir, f"{video_id}"),
             "quiet": True,
+             
         }
+        
+        if self.cookies_file and os.path.exists(self.cookies_file):
+            logging.info(f"Using cookies file for subtitle extraction: {self.cookies_file}")
+            ydl_opts["cookiefile"] = self.cookies_file
+        
         try:
+            logging.info(f"Downloading subtitles for video: {video_id}")
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
+            
+            # Try to find and return subtitle content
+            logging.info("Searching for subtitle files...")
             for lang in YOUTUBE_SUB_LANGS:
-                path = os.path.join(temp_dir, f"{video_id}.{lang}.vtt")
-                if os.path.exists(path):
-                    try:
-                        with open(path, "r", encoding="utf-8") as fh:
-                            vtt = fh.read()
-                        return TranscriptExtractor._parse_vtt(vtt)
-                    finally:
-                        # Clean up the temporary file even if parsing fails
-                        if os.path.exists(path):
+                for ext in ['vtt', 'srt']:
+                    path = os.path.join(temp_dir, f"{video_id}.{lang}.{ext}")
+                    logging.debug(f"Checking for subtitle file: {path}")
+                    if os.path.exists(path):
+                        try:
+                            logging.info(f"Found subtitle file: {path}")
+                            with open(path, "r", encoding="utf-8") as fh:
+                                content = fh.read()
+                            logging.info(f"Successfully read subtitle content, length: {len(content)} chars")
+                            # Clean up the temporary file
                             os.remove(path)
+                            logging.info("Cleaned up temporary subtitle file")
+                            return content
+                        except Exception as e:
+                            logging.warning(f"Error reading subtitle file {path}: {e}")
+                            if os.path.exists(path):
+                                os.remove(path)
         except Exception as e:
-            logging.warning(f"yt-dlp subtitle error for {video_id}: {e}")
+            logging.warning(f"yt-dlp subtitle extraction error for {video_id}: {e}")
+        logging.info(f"No subtitles found for video: {video_id}")
         return None
-
-    @staticmethod
-    def _parse_vtt(vtt: str) -> str:
-        lines: List[str] = []
-        for line in vtt.splitlines():
-            line = line.strip()
-            if (
-                not line
-                or line.startswith("WEBVTT")
-                or re.match(r"^\d+$", line)
-                or re.match(r"^\d{2}:\d{2}:\d{2}\.\d{3} -->", line)
-                or re.match(r"^\d{2}:\d{2}\.\d{3} -->", line)
-            ):
-                continue
-            lines.append(line)
-        return " ".join(lines)
-
-    def get_transcript(self, video_id: str) -> str | None:
-        return self.from_api(video_id) or self.from_ytdlp(video_id)
 
 
 # ---------------------------------------------------------------------------
@@ -261,13 +277,15 @@ def load_prompt():
 # ---------------------------------------------------------------------------
 class Summarizer:
     def __init__(self, api_key: str, base_url: str, model: str):
+        logging.info(f"Initializing Summarizer with model: {model}")
+        logging.info(f"Using API endpoint: {base_url}")
         self.client = openai.OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
         self.prompt_template = load_prompt() or (
             "Analyze this YouTube video and provide a concise summary:\n\n"
             "Title: {title}\n"
             "Description: {description}\n"
-            "Transcript: {transcript}\n\n"
+            "Subtitles: {subtitles}\n\n"
             "Provide:\n"
             "1. Main topics\n"
             "2. Key points\n"
@@ -276,16 +294,25 @@ class Summarizer:
             "5. Your opinion on the video's value\n\n"
             "Format as a Telegram‑friendly message with emojis."
         )
+        logging.info("Summarizer initialized successfully")
 
     def summarize(
         self,
         title: str,
         description: str,
-        transcript: str,
+        subtitles: str,
         max_tokens: int = 300,
     ) -> str:
-        prompt = self.prompt_template.format(title=title, description=description, transcript=transcript[:4000])
+        logging.info(f"Starting summarization for video: {title}")
+        logging.info(f"Description length: {len(description)} chars")
+        logging.info(f"Subtitles length: {len(subtitles)} chars")
+        logging.info(f"Max tokens for summary: {max_tokens}")
+        
+        prompt = self.prompt_template.format(title=title, description=description, subtitles=subtitles[:5000])
+        logging.debug(f"Generated prompt length: {len(prompt)} chars")
+        
         try:
+            logging.info("Sending request to OpenAI API...")
             resp = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -294,7 +321,9 @@ class Summarizer:
                 ],
                 max_tokens=max_tokens,
             )
-            return resp.choices[0].message.content
+            summary = resp.choices[0].message.content
+            logging.info(f"Successfully generated summary, length: {len(summary)} chars")
+            return summary
         except Exception as e:
             logging.error(f"OpenAI summarisation error: {e}")
             return "Summary unavailable."
@@ -326,55 +355,101 @@ class Notifier:
 
 def main() -> None:
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[
             logging.FileHandler("yt2telegramRAG.log"),
             logging.StreamHandler()
         ]
-)
+    )
+    
+    logging.info("=" * 60)
+    logging.info("STARTING YOUTUBE TO TELEGRAM PIPELINE")
+    logging.info("=" * 60)
+    
+    try:
+        logging.info("Loading configuration...")
+        cfg = Config()
+        logging.info("Configuration loaded successfully")
+        
+        logging.info("Initializing components...")
+        db = Database(cfg.db_path)
+        yt = YouTubeClient(cfg.channel_id, cfg.cookies_file)
+        se = SubtitleExtractor(cfg.cookies_file)
+        summariser = Summarizer(cfg.openai_api_key, cfg.openai_base_url, cfg.openai_model)
+        notifier = Notifier(cfg.telegram_bot_token, cfg.telegram_chat_id)
+        logging.info("All components initialized successfully")
+        
+        logging.info("Fetching latest videos...")
+        all_videos = yt.get_latest_videos()
+        logging.info(f"Found {len(all_videos)} total videos from channel")
+        
+        new_videos = [
+            v for v in all_videos if not db.is_processed(v["video_id"])
+        ]
+        logging.info(f"Found {len(new_videos)} new videos to process")
+        
+        if not new_videos:
+            logging.info("No new videos found. Exiting.")
+            db.close()
+            return
 
-    cfg = Config()
-    db = Database(cfg.db_path)
-    yt = YouTubeClient(cfg.channel_id)
-    tx = TranscriptExtractor()
-    summariser = Summarizer(cfg.openai_api_key, cfg.openai_base_url, cfg.openai_model)
-    notifier = Notifier(cfg.telegram_bot_token, cfg.telegram_chat_id)
+        for idx, video in enumerate(new_videos, 1):
+            logging.info("-" * 60)
+            logging.info(f"Processing video {idx}/{len(new_videos)}")
+            logging.info(f"Video ID: {video['video_id']}")
+            logging.info(f"Title: {video['title']}")
+            logging.info(f"Published: {video['published_at']}")
+            
+            logging.info("Extracting subtitles...")
+            subtitles = se.get_subtitles(video["video_id"]) or video["description"]
+            logging.info(f"Subtitles extracted, length: {len(subtitles)} chars")
+            
+            logging.info("Generating summary...")
+            summary_raw = summariser.summarize(
+                video["title"], video["description"], subtitles
+            )
+            logging.info("Summary generated successfully")
 
-    new_videos = [
-        v for v in yt.get_latest_videos() if not db.is_processed(v["video_id"])
-    ]
-    logging.info(f"Found {len(new_videos)} new videos.")
+            logging.info("Formatting message for Telegram...")
+            # Escape for MarkdownV2
+            summary = escape_markdown_v2(summary_raw)
+            title_md = escape_markdown_v2(video["title"])
 
-    for video in new_videos:
-        logging.info(f"Processing {video['title']}")
-        transcript = tx.get_transcript(video["video_id"]) or video["description"]
-        summary_raw = summariser.summarize(
-            video["title"], video["description"], transcript
-        )
+            message = SUMMARY_TEMPLATE.format(
+                title=title_md,
+                published=escape_markdown_v2(video["published_at"]),
+                summary=summary,
+                video_id=video["video_id"],
+            )
+            logging.info("Message formatted successfully")
+            logging.debug(f"Message content: {message}")
 
-        # Escape for MarkdownV2
-        summary = escape_markdown_v2(summary_raw)
-        title_md = escape_markdown_v2(video["title"])
+            logging.info("Sending message to Telegram...")
+            notifier.send(message)
+            logging.info("Message sent successfully")
 
-        message = SUMMARY_TEMPLATE.format(
-            title=title_md,
-            published=escape_markdown_v2(video["published_at"]),
-            summary=summary,
-            video_id=video["video_id"],
-        )
+            logging.info("Saving to database...")
+            db.mark_processed(
+                video["video_id"],
+                video["title"],
+                video["published_at"],
+                summary_raw,
+                subtitles,
+            )
+            logging.info("Video processing completed")
 
-        notifier.send(message)
-        db.mark_processed(
-            video["video_id"],
-            video["title"],
-            video["published_at"],
-            summary_raw,
-            transcript,
-        )
-        logging.info("Done.")
-
-    db.close()
+        logging.info("=" * 60)
+        logging.info("PIPELINE COMPLETED SUCCESSFULLY")
+        logging.info("=" * 60)
+        
+    except Exception as e:
+        logging.error(f"Pipeline failed with error: {e}", exc_info=True)
+        raise
+    finally:
+        logging.info("Closing database connection...")
+        db.close()
+        logging.info("Database connection closed")
 
 
 if __name__ == "__main__":
