@@ -1,0 +1,47 @@
+# channel_manager/channels/example_channel.yml
+
+# General Channel Information
+name: "Example Channel"
+channel_id: "UCsXVk37bltHxD1rDPwtNM8Q" # Replace with the actual YouTube Channel ID
+schedule: "daily" # How often to check for new videos: "daily", "weekly", "monthly"
+db_path: "channel_manager/downloads/example_channel.db" # Path to this channel's dedicated SQLite DB
+cookies_file: null # Optional: Path to a cookies.txt file for private videos/channels
+max_videos_to_fetch: 5 # Number of latest videos to fetch from the channel's feed
+
+# Summary Configuration
+summary_length_limit: 5000 # Maximum characters for AI-generated summaries (configurable)
+
+# Retry Configuration for external API calls
+retry_attempts: 3 # Number of times to retry a failed operation
+retry_delay_seconds: 5 # Delay in seconds between retry attempts
+
+# LLM (Large Language Model) Configuration for Summarization
+# These settings override global defaults if specified.
+llm_config:
+  llm_api_key_env: "LLM_PROVIDER_API_KEY" # Environment variable name for the LLM API key
+  llm_base_url: "https://api.openai.com/v1" # LLM API endpoint (e.g., for OpenAI, custom local LLMs)
+  llm_model: "gpt-4o-mini" # Specific LLM model to use for summarization
+  # Custom prompt template for this channel's video summaries.
+  # The '{content}' placeholder will be replaced by the cleaned video subtitles.
+  llm_prompt_template: "Summarize the following video content from the 'Example Channel'. Focus on key takeaways and actionable insights for a technical audience.\n\nContent: {content}"
+
+# Telegram Bot(s) Configuration for Notifications
+# A channel can have multiple bots, each sending to a different chat_id.
+telegram_bots:
+  - name: "Main Channel Bot" # A descriptive name for this bot instance
+    token_env: "MAIN_TELEGRAM_BOT_TOKEN" # Environment variable name for this bot's token
+    chat_id: "-1001234567890" # The Telegram chat ID where notifications will be sent (can be a user, group, or channel ID)
+  - name: "Admin Alerts Bot" # Another bot for administrative alerts, for example
+    token_env: "ADMIN_TELEGRAM_BOT_TOKEN" # Environment variable name for the admin bot's token
+    chat_id: "987654321" # Admin's personal chat ID
+
+# Subtitle Preferences
+# The order matters: the system will try to download subtitles in this order
+# until a match is found.
+subtitles:
+  - lang: "en" # Language code (e.g., "en", "de", "fr")
+    type: "manual" # "manual" (human-generated) or "automatic" (YouTube's auto-generated)
+  - lang: "de"
+    type: "manual"
+  - lang: "en"
+    type: "automatic"

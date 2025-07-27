@@ -18,6 +18,49 @@ A YouTube-to-Telegram RAG (Retrieval-Augmented Generation) system that:
 - SQLite database for persistent storage
 - Logging to file and console
 - Modular: monitor and bot run as separate scripts
+- Proper Python package structure
+
+---
+
+## Project Structure
+
+```
+yt2telegramRAG/
+├── src/
+│   └── yt2telegram/
+│       ├── __init__.py
+│       ├── __main__.py
+│       ├── core/
+│       │   ├── __init__.py
+│       │   └── youtube2telegram.py
+│       ├── bot/
+│       │   ├── __init__.py
+│       │   └── tg_bot.py
+│       ├── db/
+│       │   ├── __init__.py
+│       │   └── database.py
+│       └── utils/
+│           ├── __init__.py
+│           ├── subtitle_downloader.py
+│           ├── test_subtitles.py
+│           └── extract_clean_subtitles.py
+├── prompts/
+│   ├── Robyn/
+│   │   ├── robynHD_y2t.yml
+│   │   └── robyn_tg_bot.yml
+│   ├── tg_bot.yml
+│   └── youtube2telegram.yml
+├── DBs/
+│   └── robyn.db
+├── downloads/
+├── tests/
+├── .env
+├── .env.example
+├── requirements.txt
+├── setup.py
+├── README.md
+└── ...
+```
 
 ---
 
@@ -27,6 +70,12 @@ A YouTube-to-Telegram RAG (Retrieval-Augmented Generation) system that:
 
 ```bash
 pip install -r requirements.txt
+```
+
+Or install as a package:
+
+```bash
+pip install -e .
 ```
 
 ### 2. Configure Environment
@@ -39,11 +88,51 @@ pip install -r requirements.txt
 ### 3. Database
 
 - The SQLite database is created automatically on first run.
-- Default path: `/root/youtube_monitor.db` (override with `DB_PATH` in `.env`)
+- Default path: `./DBs/robyn.db` (override with `DB_PATH` in `.env`)
 
 ---
 
 ## Usage
+
+### As a Package
+
+After installing with `pip install -e .`:
+
+```bash
+# Monitor for new videos
+yt2telegram monitor
+
+# Run the Telegram bot
+yt2telegram bot
+
+# Download subtitles for a specific video
+yt2telegram download-subtitles --video-id VIDEO_ID
+
+# Test subtitle extraction for a specific video
+yt2telegram test-subtitles --video-id VIDEO_ID
+
+# Extract clean subtitles for a specific video
+yt2telegram extract-subtitles --video-id VIDEO_ID
+```
+
+### Direct Script Execution
+
+```bash
+# Monitor for new videos
+python -m src.yt2telegram.core.youtube2telegram
+
+# Run the Telegram bot
+python -m src.yt2telegram.bot.tg_bot
+
+# Download subtitles for a specific video
+python -m src.yt2telegram.utils.subtitle_downloader VIDEO_ID
+
+# Test subtitle extraction for a specific video
+python -m src.yt2telegram.utils.test_subtitles VIDEO_ID
+
+# Extract clean subtitles for a specific video
+python -m src.yt2telegram.utils.extract_clean_subtitles VIDEO_ID
+```
 
 ### Monitor Script (`youtube2telegram.py`)
 
@@ -51,11 +140,11 @@ pip install -r requirements.txt
 - Sends summaries to Telegram
 - To run once (for cron):
   ```bash
-  python3 youtube2telegram.py
+  yt2telegram monitor
   ```
 - Example crontab (daily at 8am):
   ```
-  0 8 * * * /usr/bin/python3 /path/to/yt2telegramRAG/youtube2telegram.py >> /path/to/yt2telegramRAG/monitor.log 2>&1
+  0 8 * * * /usr/bin/yt2telegram monitor >> /path/to/yt2telegramRAG/monitor.log 2>&1
   ```
 
 ### Bot Script (`tg_bot.py`)
@@ -64,7 +153,7 @@ pip install -r requirements.txt
 - Answers using latest transcript and all previous summaries
 - To run persistently:
   ```bash
-  python3 tg_bot.py
+  yt2telegram bot
   ```
 - Example systemd service:
 
@@ -76,7 +165,7 @@ pip install -r requirements.txt
   [Service]
   Type=simple
   WorkingDirectory=/path/to/yt2telegramRAG
-  ExecStart=/usr/bin/python3 /path/to/yt2telegramRAG/tg_bot.py
+  ExecStart=/usr/bin/yt2telegram bot
   Restart=always
   User=youruser
 
