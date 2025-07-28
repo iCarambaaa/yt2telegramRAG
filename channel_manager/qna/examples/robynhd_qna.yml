@@ -1,0 +1,33 @@
+# Q&A Bot Configuration for RobynHD Channel
+# This bot shares the same chat ID as the summary bot but uses a different bot token
+
+# Bot Configuration
+bot_token: "YOUR_QNA_BOT_TOKEN_HERE" # Create a new bot via @BotFather
+channel_name: "RobynHD Q&A"
+chat_id: -1001234567890 # Same as your summary bot's chat ID
+
+# Database Configuration
+database_path: "../downloads/robynhd_channel.db" # Path to channel database
+
+# OpenRouter API Configuration
+openrouter_key: "YOUR_OPENROUTER_API_KEY_HERE"
+openrouter_model: "anthropic/claude-3.5-sonnet"
+openrouter_url: "https://openrouter.ai/api/v1/chat/completions"
+
+# Q&A Settings
+max_context_length: 4000 # Maximum characters to include in context
+max_results: 5 # Maximum videos to include in search results
+response_timeout: 30 # Seconds to wait for OpenRouter response
+
+# Bot Behavior
+system_prompt: |
+  You are a helpful assistant for the RobynHD YouTube channel. 
+  Answer questions based on the provided video summaries and subtitles.
+  Be concise but informative. If information isn't available, say so.
+  Always cite the video title when referencing content.
+
+# Example usage:
+# 1. Create a new bot via @BotFather
+# 2. Copy the bot token here
+# 3. Set the same chat_id as your summary bot
+# 4. Run: python bot.py examples/robynhd_qna.yml

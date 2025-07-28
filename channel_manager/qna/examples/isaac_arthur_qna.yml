@@ -1,0 +1,33 @@
+# Q&A Bot Configuration for Isaac Arthur Channel
+# This bot shares the same chat ID as the summary bot but uses a different bot token
+
+# Bot Configuration
+bot_token: "YOUR_QNA_BOT_TOKEN_HERE" # Create a new bot via @BotFather
+channel_name: "Isaac Arthur Q&A"
+chat_id: -1000987654321 # Same as your summary bot's chat ID
+
+# Database Configuration
+database_path: "../downloads/isaac_arthur.db" # Path to channel database
+
+# OpenRouter API Configuration
+openrouter_key: "YOUR_OPENROUTER_API_KEY_HERE"
+openrouter_model: "anthropic/claude-3.5-sonnet"
+openrouter_url: "https://openrouter.ai/api/v1/chat/completions"
+
+# Q&A Settings
+max_context_length: 4000 # Maximum characters to include in context
+max_results: 5 # Maximum videos to include in search results
+response_timeout: 30 # Seconds to wait for OpenRouter response
+
+# Bot Behavior
+system_prompt: |
+  You are a knowledgeable assistant for the Isaac Arthur YouTube channel. 
+  Answer questions about futurism, space exploration, and advanced concepts.
+  Be detailed and accurate. Reference specific videos when discussing topics.
+  If discussing speculative concepts, mention they are from Isaac Arthur's analysis.
+
+# Example usage:
+# 1. Create a new bot via @BotFather
+# 2. Copy the bot token here
+# 3. Set the same chat_id as your summary bot
+# 4. Run: python bot.py examples/isaac_arthur_qna.yml

@@ -1,7 +1,4 @@
-"""
-Input validation and sanitization utilities for the channel_manager package.
-Provides comprehensive validation for all inputs including configuration, URLs, IDs, and text content.
-"""
+
 
 import re
 import os
@@ -244,6 +241,84 @@ class InputValidator:
             except (ValueError, TypeError):
                 raise ValidationError("check_interval must be a positive integer")
         
+        # Validate schedule
+        if 'schedule' in config:
+            schedule_type = config['schedule']
+            if schedule_type not in ['daily', 'weekly', 'monthly']:
+                raise ValidationError(f"Invalid schedule type: {schedule_type}. Must be 'daily', 'weekly', or 'monthly'.")
+            validated['schedule'] = schedule_type
+        else:
+            # Default schedule if not provided
+            validated['schedule'] = 'daily'
+
+        # Validate db_path
+        if 'db_path' in config:
+            validated['db_path'] = cls.validate_file_path(config['db_path'])
+        else:
+            raise ValidationError("Missing required field: 'db_path'")
+
+        # Validate cookies_file
+        if 'cookies_file' in config and config['cookies_file'] is not None:
+            validated['cookies_file'] = cls.validate_file_path(config['cookies_file'], must_exist=True)
+        else:
+            validated['cookies_file'] = None
+
+        # Validate max_videos_to_fetch
+        if 'max_videos_to_fetch' in config:
+            try:
+                max_videos = int(config['max_videos_to_fetch'])
+                if max_videos < 1:
+                    raise ValidationError("max_videos_to_fetch must be at least 1")
+                validated['max_videos_to_fetch'] = max_videos
+            except (ValueError, TypeError):
+                raise ValidationError("max_videos_to_fetch must be an integer")
+        else:
+            validated['max_videos_to_fetch'] = 5 # Default value
+
+        # Validate retry_attempts
+        if 'retry_attempts' in config:
+            try:
+                attempts = int(config['retry_attempts'])
+                if attempts < 1:
+                    raise ValidationError("retry_attempts must be at least 1")
+                validated['retry_attempts'] = attempts
+            except (ValueError, TypeError):
+                raise ValidationError("retry_attempts must be an integer")
+        else:
+            validated['retry_attempts'] = 3 # Default value
+
+        # Validate retry_delay_seconds
+        if 'retry_delay_seconds' in config:
+            try:
+                delay = int(config['retry_delay_seconds'])
+                if delay < 0:
+                    raise ValidationError("retry_delay_seconds cannot be negative")
+                validated['retry_delay_seconds'] = delay
+            except (ValueError, TypeError):
+                raise ValidationError("retry_delay_seconds must be an integer")
+        else:
+            validated['retry_delay_seconds'] = 5 # Default value
+
+        # Validate llm_config
+        if 'llm_config' in config:
+            validated['llm_config'] = cls.validate_llm_config(config['llm_config'])
+        else:
+            validated['llm_config'] = {} # Default empty config
+
+        # Validate subtitles
+        if 'subtitles' in config:
+            subtitles = config['subtitles']
+            if not isinstance(subtitles, list):
+                raise ValidationError("'subtitles' must be a list")
+            validated_subtitles = []
+            for idx, sub_config in enumerate(subtitles):
+                if not isinstance(sub_config, dict):
+                    raise ValidationError(f"Subtitle configuration at index {idx} must be a dictionary")
+                validated_subtitles.append(cls.validate_subtitle_config(sub_config))
+            validated['subtitles'] = validated_subtitles
+        else:
+            validated['subtitles'] = [] # Default empty list
+
         return validated
     
     @classmethod
@@ -251,16 +326,23 @@ class InputValidator:
         """Validate Telegram bot configuration."""
         validated = {}
         
-        required_fields = ['token_env', 'chat_id']
-        for field in required_fields:
-            if field not in config:
-                raise ValidationError(f"Missing required field: {field}")
-        
-        # Validate token_env
+        # Validate token_env (required)
+        if 'token_env' not in config:
+            raise ValidationError("Missing required field: 'token_env' for Telegram bot")
         validated['token_env'] = cls.validate_environment_variable(config['token_env'])
         
-        # Validate chat_id
-        validated['chat_id'] = cls.validate_telegram_chat_id(config['chat_id'])
+        # Validate chat_id_env or chat_id (one is required)
+        chat_id_env = config.get('chat_id_env')
+        chat_id = config.get('chat_id')
+
+        if chat_id_env is None and chat_id is None:
+            raise ValidationError("Missing required field: 'chat_id_env' or 'chat_id' for Telegram bot")
+
+        if chat_id_env is not None:
+            validated['chat_id_env'] = cls.validate_environment_variable(chat_id_env)
+        
+        if chat_id is not None:
+            validated['chat_id'] = cls.validate_telegram_chat_id(chat_id)
         
         # Validate optional name
         if 'name' in config:
@@ -272,6 +354,73 @@ class InputValidator:
         else:
             validated['name'] = 'Unnamed Bot'
         
+        return validated
+    
+    @classmethod
+    def validate_llm_config(cls, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate LLM configuration."""
+        validated = {}
+
+        # Validate llm_api_key_env (required)
+        if 'llm_api_key_env' not in config:
+            raise ValidationError("Missing required field: 'llm_api_key_env' for LLM config")
+        validated['llm_api_key_env'] = cls.validate_environment_variable(config['llm_api_key_env'])
+
+        # Validate llm_model_env or llm_model
+        llm_model_env = config.get('llm_model_env')
+        llm_model = config.get('llm_model')
+        if llm_model_env is not None:
+            validated['llm_model_env'] = cls.validate_environment_variable(llm_model_env)
+        if llm_model is not None:
+            validated['llm_model'] = cls.validate_text_content(llm_model, allow_empty=False)
+        if llm_model_env is None and llm_model is None:
+            # If neither is provided, it will fall back to hardcoded default in LLMSummarizer
+            pass 
+
+        # Validate llm_base_url_env or llm_base_url
+        llm_base_url_env = config.get('llm_base_url_env')
+        llm_base_url = config.get('llm_base_url')
+        if llm_base_url_env is not None:
+            validated['llm_base_url_env'] = cls.validate_environment_variable(llm_base_url_env)
+        if llm_base_url is not None:
+            # Basic URL validation (can be more robust if needed)
+            if not re.match(r'^https?://', llm_base_url):
+                raise ValidationError(f"Invalid LLM base URL format: {llm_base_url}. Must start with http(s)://")
+            validated['llm_base_url'] = cls.validate_text_content(llm_base_url, allow_empty=False)
+        if llm_base_url_env is None and llm_base_url is None:
+            # If neither is provided, it will fall back to hardcoded default in LLMSummarizer
+            pass
+
+        # Validate llm_prompt_template_path or llm_prompt_template
+        llm_prompt_template_path = config.get('llm_prompt_template_path')
+        llm_prompt_template = config.get('llm_prompt_template')
+        if llm_prompt_template_path is not None:
+            validated['llm_prompt_template_path'] = cls.validate_file_path(llm_prompt_template_path, must_exist=True)
+        if llm_prompt_template is not None:
+            validated['llm_prompt_template'] = cls.validate_text_content(llm_prompt_template, allow_empty=False)
+        if llm_prompt_template_path is None and llm_prompt_template is None:
+            # If neither is provided, it will fall back to hardcoded default in LLMSummarizer
+            pass
+
+        return validated
+
+    @classmethod
+    def validate_subtitle_config(cls, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate subtitle configuration."""
+        validated = {}
+
+        # Validate lang (required)
+        if 'lang' not in config:
+            raise ValidationError("Missing required field: 'lang' for subtitle config")
+        validated['lang'] = cls.validate_text_content(config['lang'], max_length=10, allow_empty=False)
+
+        # Validate type (required)
+        if 'type' not in config:
+            raise ValidationError("Missing required field: 'type' for subtitle config")
+        if config['type'] not in ['manual', 'automatic']:
+            raise ValidationError(f"Invalid subtitle type: {config['type']}. Must be 'manual' or 'automatic'.")
+        validated['type'] = config['type']
+
         return validated
     
     @classmethod
@@ -392,7 +541,7 @@ class Sanitizer:
     def sanitize_filename(filename: str) -> str:
         """Sanitize filename for safe file system usage."""
         # Remove or replace unsafe characters
-        unsafe_chars = '<>:\"/\\|?*'
+        unsafe_chars = '<>:"/\\|?*'
         for char in unsafe_chars:
             filename = filename.replace(char, '_')
         
@@ -411,7 +560,7 @@ class Sanitizer:
     def sanitize_path_component(path: str) -> str:
         """Sanitize path component for safe directory usage."""
         # Remove or replace unsafe characters
-        unsafe_chars = '<>:\"/\\|?*'
+        unsafe_chars = '<>:"/\\|?*'
         for char in unsafe_chars:
             path = path.replace(char, '_')
         

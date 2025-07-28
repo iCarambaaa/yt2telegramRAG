@@ -36,13 +36,16 @@ class YouTubeClient:
                         info = ydl.extract_info(channel_url, download=False)
                         entries = info.get("entries", [])
                         for entry in entries:
-                            if entry and entry.get('id'): # Ensure it's a valid video entry
-                                videos.append({
-                                    "id": entry["id"],
-                                    "title": entry.get("title", ""),
-                                    "published_at": entry.get("upload_date", ""), # YYYYMMDD format
-                                    "channel_id": channel_id,
-                                })
+                            try:
+                                if entry and entry.get('id'): # Ensure it's a valid video entry
+                                    videos.append({
+                                        "id": entry["id"],
+                                        "title": entry.get("title", ""),
+                                        "published_at": entry.get("upload_date", ""), # YYYYMMDD format
+                                        "channel_id": channel_id,
+                                    })
+                            except Exception as e:
+                                logger.error(f"Error processing video entry from yt-dlp: {entry}. Error: {e}")
                         return videos
                 
                 videos = await asyncio.to_thread(_fetch_videos)

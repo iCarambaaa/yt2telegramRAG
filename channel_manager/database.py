@@ -1,8 +1,6 @@
-
 import sqlite3
 from pathlib import Path
 import logging
-from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any, List
 import asyncio
 
@@ -53,7 +51,7 @@ class DatabaseManager:
                     title TEXT,
                     channel_id TEXT,
                     published_at TEXT,
-                    raw_subtitle_path TEXT,
+                    raw_subtitles TEXT,
                     cleaned_subtitles TEXT,
                     summary TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -78,7 +76,6 @@ class DatabaseManager:
         except sqlite3.Error as e:
             raise DatabaseError(f"Failed to create tables: {e}")
     
-    @asynccontextmanager
     async def __aenter__(self):
         """Async context manager entry."""
         self._conn = await asyncio.to_thread(self._get_sync_connection)
@@ -121,7 +118,7 @@ class DatabaseManager:
             cursor = self._conn.cursor()
             cursor.execute(
                 """INSERT OR REPLACE INTO videos 
-                   (id, title, channel_id, published_at, raw_subtitle_path, 
+                   (id, title, channel_id, published_at, raw_subtitles, 
                     cleaned_subtitles, summary, updated_at) 
                    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)""",
                 (
@@ -129,7 +126,7 @@ class DatabaseManager:
                     video_data['title'],
                     video_data['channel_id'],
                     video_data['published_at'],
-                    video_data.get('raw_subtitle_path', ''),
+                    video_data.get('raw_subtitles', ''),
                     video_data.get('cleaned_subtitles', ''),
                     video_data.get('summary', '')
                 )

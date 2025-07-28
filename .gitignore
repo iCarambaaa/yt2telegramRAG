@@ -143,3 +143,5 @@ Thumbs.db
 *.db-journal
 downloads/
 cookies.txt
+/channel_manager/channels/*
+!/channel_manager/channels/example_channel.yml

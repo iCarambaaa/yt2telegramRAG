@@ -8,9 +8,6 @@ db_path: "channel_manager/downloads/example_channel.db" # Path to this channel's
 cookies_file: null # Optional: Path to a cookies.txt file for private videos/channels
 max_videos_to_fetch: 5 # Number of latest videos to fetch from the channel's feed
 
-# Summary Configuration
-summary_length_limit: 5000 # Maximum characters for AI-generated summaries (configurable)
-
 # Retry Configuration for external API calls
 retry_attempts: 3 # Number of times to retry a failed operation
 retry_delay_seconds: 5 # Delay in seconds between retry attempts
@@ -18,29 +15,50 @@ retry_delay_seconds: 5 # Delay in seconds between retry attempts
 # LLM (Large Language Model) Configuration for Summarization
 # These settings override global defaults if specified.
 llm_config:
-  llm_api_key_env: "LLM_PROVIDER_API_KEY" # Environment variable name for the LLM API key
-  llm_base_url: "https://api.openai.com/v1" # LLM API endpoint (e.g., for OpenAI, custom local LLMs)
+  llm_api_key_env: "LLM_PROVIDER_API_KEY"
+
+  # Priority for LLM Model:
+  # 1. Value from environment variable specified by llm_model_env
+  # 2. Direct value from llm_model
+  # 3. Default hardcoded in code (gpt-4o-mini)
+  llm_model_env: null # Optional: Environment variable name for the LLM model (e.g., "MY_LLM_MODEL")
   llm_model: "gpt-4o-mini" # Specific LLM model to use for summarization
+
+  # Priority for LLM Base URL:
+  # 1. Value from environment variable specified by llm_base_url_env
+  # 2. Direct value from llm_base_url
+  # 3. Default hardcoded in code (https://api.openai.com/v1)
+  llm_base_url_env: null # Optional: Environment variable name for the LLM base URL (e.g., "MY_LLM_BASE_URL")
+  llm_base_url: "https://openrouter.ai/api/v1" # Updated base URL
+
   # Custom prompt template for this channel's video summaries.
   # The '{content}' placeholder will be replaced by the cleaned video subtitles.
-  llm_prompt_template: "Summarize the following video content from the 'Example Channel'. Focus on key takeaways and actionable insights for a technical audience.\n\nContent: {content}"
+  llm_prompt_template_path: "channel_manager/prompts/example_summary.md"
 
 # Telegram Bot(s) Configuration for Notifications
 # A channel can have multiple bots, each sending to a different chat_id.
 telegram_bots:
-  - name: "Main Channel Bot" # A descriptive name for this bot instance
-    token_env: "MAIN_TELEGRAM_BOT_TOKEN" # Environment variable name for this bot's token
-    chat_id: "-1001234567890" # The Telegram chat ID where notifications will be sent (can be a user, group, or channel ID)
-  - name: "Admin Alerts Bot" # Another bot for administrative alerts, for example
-    token_env: "ADMIN_TELEGRAM_BOT_TOKEN" # Environment variable name for the admin bot's token
-    chat_id: "987654321" # Admin's personal chat ID
+  - name: "Main Channel Bot"
+    token_env: "MAIN_TELEGRAM_BOT_TOKEN"
+    # Priority for Chat ID:
+    # 1. Value from environment variable specified by chat_id_env
+    # 2. Direct value from chat_id
+    chat_id_env: "MAIN_TELEGRAM_CHAT_ID" # New: Environment variable name for the chat ID
+    chat_id: null # Optional: Direct numeric chat ID (e.g., -1234567890)
+  - name: "Admin Alerts Bot"
+    token_env: "ADMIN_TELEGRAM_BOT_TOKEN"
+    # Priority for Chat ID:
+    # 1. Value from environment variable specified by chat_id_env
+    # 2. Direct value from chat_id
+    chat_id_env: "ADMIN_TELEGRAM_CHAT_ID" # New: Environment variable name for the chat ID
+    chat_id: null # Optional: Direct numeric chat ID (e.g., -1234567890)
 
 # Subtitle Preferences
 # The order matters: the system will try to download subtitles in this order
 # until a match is found.
 subtitles:
-  - lang: "en" # Language code (e.g., "en", "de", "fr")
-    type: "manual" # "manual" (human-generated) or "automatic" (YouTube's auto-generated)
+  - lang: "en"
+    type: "manual"
   - lang: "de"
     type: "manual"
   - lang: "en"
