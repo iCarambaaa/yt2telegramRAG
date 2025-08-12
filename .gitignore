@@ -145,6 +145,7 @@ Thumbs.db
 *.db-journal
 downloads/
 cookies.txt
-COOKIES_FILE
-/yt2telegram/channels/*
+
 !/yt2telegram/channels/example_channel.yml
+
+COOKIES_FILE
