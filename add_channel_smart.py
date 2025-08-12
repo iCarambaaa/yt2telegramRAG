@@ -8,11 +8,17 @@ import os
 import yaml
 import yt_dlp
 import re
+import json
 from pathlib import Path
 from typing import Dict, List, Optional
+from openai import OpenAI
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 class ChannelAnalyzer:
-    """Analyzes YouTube channels to understand their style and content"""
+    """AI-powered YouTube channel analyzer that deeply understands content and style"""
     
     def __init__(self):
         self.ydl_opts = {
@@ -20,14 +26,20 @@ class ChannelAnalyzer:
             'extract_flat': False,
             'writesubtitles': False,
             'writeautomaticsub': True,
-            'subtitleslangs': ['-live_chat'],  # Get original language auto-captions, exclude live chat
+            'subtitleslangs': ['-live_chat'],
             'skip_download': True,
             'playlist_items': '1:5'  # Analyze first 5 videos
         }
+        
+        # Initialize LLM client
+        self.llm_client = OpenAI(
+            api_key=os.getenv('LLM_PROVIDER_API_KEY'),
+            base_url=os.getenv('BASE_URL', 'https://openrouter.ai/api/v1')
+        )
     
     def get_channel_info(self, channel_id: str) -> Optional[Dict]:
-        """Get comprehensive channel information"""
-        print(f"🔍 Analyzing channel: {channel_id}")
+        """Get comprehensive channel information with video content"""
+        print(f"🔍 Fetching channel data: {channel_id}")
         
         try:
             with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
@@ -36,94 +48,232 @@ class ChannelAnalyzer:
                 
                 channel_name = info.get('title', info.get('uploader', 'Unknown Channel'))
                 description = info.get('description', '')
-                entries = info.get('entries', [])[:5]  # First 5 videos
+                entries = info.get('entries', [])[:5]
                 
                 print(f"✅ Found: {channel_name}")
-                print(f"📊 Analyzing {len(entries)} recent videos...")
+                print(f"📊 Downloading subtitles from {len(entries)} recent videos...")
+                
+                # Get detailed video info with subtitles
+                detailed_videos = []
+                for entry in entries:
+                    try:
+                        video_info = ydl.extract_info(entry['url'], download=False)
+                        
+                        # Extract subtitle content
+                        subtitle_content = ""
+                        if 'automatic_captions' in video_info:
+                            for lang, subs in video_info['automatic_captions'].items():
+                                if subs:  # Take first available subtitle format
+                                    sub_url = subs[0]['url']
+                                    import requests
+                                    response = requests.get(sub_url)
+                                    if response.status_code == 200:
+                                        subtitle_content = response.text[:5000]  # First 5000 chars
+                                        break
+                        
+                        detailed_videos.append({
+                            'title': video_info.get('title', ''),
+                            'description': video_info.get('description', '')[:1000],  # First 1000 chars
+                            'subtitles': subtitle_content,
+                            'view_count': video_info.get('view_count', 0),
+                            'upload_date': video_info.get('upload_date', '')
+                        })
+                        
+                    except Exception as e:
+                        print(f"⚠️ Skipping video due to error: {e}")
+                        continue
                 
                 return {
                     'name': channel_name,
                     'id': channel_id,
                     'description': description,
-                    'videos': entries
+                    'videos': detailed_videos
                 }
                 
         except Exception as e:
             print(f"❌ Error: {e}")
             return None
     
-    def analyze_content_style(self, channel_info: Dict) -> Dict:
-        """Analyze channel's content style and themes"""
+    def analyze_with_ai(self, channel_info: Dict) -> Dict:
+        """Use AI to deeply analyze channel content and style"""
+        print(f"🧠 AI analyzing {channel_info['name']} content and style...")
+        
+        # Prepare content for AI analysis
+        analysis_content = self._prepare_content_for_analysis(channel_info)
+        
+        # AI analysis prompt
+        analysis_prompt = f"""Analyze this YouTube channel based on the provided content. You have access to:
+- Channel name and description
+- Recent video titles, descriptions, and subtitle excerpts
+- Your existing knowledge about this creator (if any)
+
+Channel: {channel_info['name']}
+Channel ID: {channel_info['id']}
+
+{analysis_content}
+
+Please provide a comprehensive analysis in JSON format with these fields:
+
+{{
+    "creator_background": "What you know about this creator, their expertise, background",
+    "content_themes": ["primary", "secondary", "themes"],
+    "unique_style": "Detailed description of their distinctive communication style, personality, humor",
+    "storytelling_approach": "How they structure and present information",
+    "target_audience": "Who watches this channel and why",
+    "key_strengths": "What makes this creator special and worth following",
+    "tone_and_personality": "Their characteristic tone, energy level, personality traits",
+    "typical_content_structure": "How they typically organize their content",
+    "language_and_terminology": "Specific words, phrases, or terminology they use",
+    "summary_focus": "What aspects should be emphasized when summarizing their content"
+}}
+
+Be specific and detailed. Use your knowledge of this creator if you recognize them."""
+        
+        try:
+            response = self.llm_client.chat.completions.create(
+                model=os.getenv('MODEL', 'gpt-4o-mini'),
+                messages=[
+                    {"role": "system", "content": "You are an expert content analyst who understands YouTube creators and their unique styles."},
+                    {"role": "user", "content": analysis_prompt}
+                ],
+                temperature=0.3
+            )
+            
+            # Parse JSON response
+            analysis_text = response.choices[0].message.content
+            
+            # Extract JSON from response (handle cases where LLM adds extra text)
+            json_start = analysis_text.find('{')
+            json_end = analysis_text.rfind('}') + 1
+            if json_start != -1 and json_end != -1:
+                json_str = analysis_text[json_start:json_end]
+                analysis = json.loads(json_str)
+                
+                print(f"✅ AI analysis complete")
+                print(f"   Themes: {', '.join(analysis.get('content_themes', []))}")
+                print(f"   Style: {analysis.get('tone_and_personality', 'Unknown')}")
+                
+                return analysis
+            else:
+                raise ValueError("Could not parse JSON from AI response")
+                
+        except Exception as e:
+            print(f"❌ AI analysis failed: {e}")
+            # Fallback to basic analysis
+            return self._fallback_analysis(channel_info)
+    
+    def _prepare_content_for_analysis(self, channel_info: Dict) -> str:
+        """Prepare channel content for AI analysis"""
+        content_parts = []
+        
+        # Channel description
+        if channel_info.get('description'):
+            content_parts.append(f"CHANNEL DESCRIPTION:\n{channel_info['description'][:500]}")
+        
+        # Recent videos
         videos = channel_info.get('videos', [])
-        titles = [v.get('title', '') for v in videos if v.get('title')]
-        descriptions = [v.get('description', '') for v in videos if v.get('description')]
+        for i, video in enumerate(videos[:5], 1):
+            content_parts.append(f"\nVIDEO {i}:")
+            content_parts.append(f"Title: {video.get('title', 'N/A')}")
+            
+            if video.get('description'):
+                content_parts.append(f"Description: {video['description'][:300]}...")
+            
+            if video.get('subtitles'):
+                # Clean subtitle content
+                subtitle_text = video['subtitles'].replace('\n', ' ')
+                # Remove VTT formatting
+                subtitle_text = re.sub(r'<[^>]+>', '', subtitle_text)
+                subtitle_text = re.sub(r'\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}', '', subtitle_text)
+                subtitle_text = ' '.join(subtitle_text.split())  # Clean whitespace
+                
+                content_parts.append(f"Content excerpt: {subtitle_text[:800]}...")
         
-        # Combine all text for analysis
-        all_text = ' '.join(titles + descriptions).lower()
-        
-        # Detect content themes
-        themes = self._detect_themes(all_text)
-        style = self._detect_style(titles, descriptions)
-        tone = self._detect_tone(all_text)
-        
+        return '\n'.join(content_parts)
+    
+    def _fallback_analysis(self, channel_info: Dict) -> Dict:
+        """Fallback analysis if AI fails"""
         return {
-            'themes': themes,
-            'style': style,
-            'tone': tone,
-            'sample_titles': titles[:3]
+            "creator_background": "Unknown creator",
+            "content_themes": ["general"],
+            "unique_style": "Professional and informative",
+            "storytelling_approach": "Direct presentation of information",
+            "target_audience": "General audience interested in the topic",
+            "key_strengths": "Knowledgeable content creation",
+            "tone_and_personality": "Professional and engaging",
+            "typical_content_structure": "Introduction, main content, conclusion",
+            "language_and_terminology": "Clear and accessible language",
+            "summary_focus": "Key facts and main insights"
         }
     
-    def _detect_themes(self, text: str) -> List[str]:
-        """Detect main content themes"""
-        theme_patterns = {
-            'crypto': ['bitcoin', 'crypto', 'blockchain', 'trading', 'defi', 'nft', 'ethereum'],
-            'ai_research': ['ai', 'machine learning', 'neural', 'paper', 'research', 'model', 'algorithm'],
-            'space_tech': ['space', 'mars', 'rocket', 'satellite', 'colony', 'civilization', 'megastructure'],
-            'geopolitics': ['politics', 'war', 'election', 'government', 'policy', 'international', 'conflict'],
-            'tech_news': ['tech', 'startup', 'innovation', 'breakthrough', 'development', 'technology'],
-            'finance': ['market', 'economy', 'stock', 'investment', 'financial', 'banking', 'fed']
-        }
-        
-        detected_themes = []
-        for theme, keywords in theme_patterns.items():
-            if sum(text.count(keyword) for keyword in keywords) > 2:
-                detected_themes.append(theme)
-        
-        return detected_themes or ['general']
-    
-    def _detect_style(self, titles: List[str], descriptions: List[str]) -> Dict:
-        """Detect presentation style"""
-        all_titles = ' '.join(titles).lower()
-        
-        style = {
-            'analytical': bool(re.search(r'\b(analysis|breakdown|explained|deep dive)\b', all_titles)),
-            'enthusiastic': bool(re.search(r'[!]{2,}|amazing|incredible|breakthrough', all_titles)),
-            'educational': bool(re.search(r'\b(how to|tutorial|guide|learn)\b', all_titles)),
-            'news_focused': bool(re.search(r'\b(breaking|news|update|latest)\b', all_titles)),
-            'technical': bool(re.search(r'\b(technical|specs|data|metrics)\b', all_titles)),
-            'storytelling': len([t for t in titles if len(t.split()) > 8]) > len(titles) * 0.6
-        }
-        
-        return {k: v for k, v in style.items() if v}
-    
-    def _detect_tone(self, text: str) -> str:
-        """Detect overall tone"""
-        if any(word in text for word in ['exciting', 'amazing', 'incredible', 'breakthrough']):
-            return 'enthusiastic'
-        elif any(word in text for word in ['analysis', 'data', 'research', 'study']):
-            return 'analytical'
-        elif any(word in text for word in ['breaking', 'urgent', 'alert', 'developing']):
-            return 'urgent'
-        else:
-            return 'informative'
+
 
 class PromptGenerator:
-    """Generates personalized prompts based on channel analysis"""
+    """Generates AI-powered personalized prompts based on deep channel analysis"""
+    
+    def __init__(self):
+        self.llm_client = OpenAI(
+            api_key=os.getenv('LLM_PROVIDER_API_KEY'),
+            base_url=os.getenv('BASE_URL', 'https://openrouter.ai/api/v1')
+        )
     
     def generate_prompt(self, channel_info: Dict, analysis: Dict) -> str:
-        """Generate simple, flexible prompt for any channel"""
-        channel_name = channel_info['name']
+        """Generate highly personalized prompt based on AI analysis"""
+        print(f"🎯 Generating personalized prompt for {channel_info['name']}...")
         
+        prompt_generation_request = f"""Based on this detailed analysis of {channel_info['name']}, create a perfect summarization prompt that will preserve their unique voice and style.
+
+CHANNEL ANALYSIS:
+{json.dumps(analysis, indent=2)}
+
+Create a prompt that:
+1. Captures their distinctive communication style and personality
+2. Focuses on the type of information their audience values
+3. Maintains their characteristic tone and approach
+4. Extracts key facts while preserving what makes them special
+5. Is specific enough to generate summaries that feel authentic to this creator
+
+The prompt should be professional but capture the essence of what makes {channel_info['name']} unique.
+
+Format the prompt as a clear instruction that will be used to summarize their video content. End with {{content}} placeholder.
+
+Example structure:
+"Extract [specific type of content] from this {channel_info['name']} video while maintaining [their specific style traits].
+
+Focus on [what their audience cares about] and preserve [their unique characteristics].
+
+[Any specific instructions based on their style]
+
+{{content}}"
+
+Make it specific to this creator, not generic."""
+        
+        try:
+            response = self.llm_client.chat.completions.create(
+                model=os.getenv('MODEL', 'gpt-4o-mini'),
+                messages=[
+                    {"role": "system", "content": "You are an expert at creating personalized content summarization prompts that preserve creator authenticity."},
+                    {"role": "user", "content": prompt_generation_request}
+                ],
+                temperature=0.4
+            )
+            
+            generated_prompt = response.choices[0].message.content.strip()
+            
+            # Ensure it ends with {content}
+            if not generated_prompt.endswith('{content}'):
+                generated_prompt += '\n\n{content}'
+            
+            print(f"✅ Personalized prompt generated")
+            return generated_prompt
+            
+        except Exception as e:
+            print(f"❌ Prompt generation failed: {e}")
+            # Fallback to simple prompt
+            return self._fallback_prompt(channel_info['name'])
+    
+    def _fallback_prompt(self, channel_name: str) -> str:
+        """Fallback prompt if AI generation fails"""
         return f"""Extract the key facts and insights from this {channel_name} video while preserving their unique style and perspective.
 
 Focus on concrete information and maintain {channel_name}'s distinctive communication approach.
@@ -131,12 +281,13 @@ Focus on concrete information and maintain {channel_name}'s distinctive communic
 {{content}}"""
 
 def create_channel_config(channel_info: Dict, analysis: Dict) -> Dict:
-    """Create channel configuration based on analysis"""
+    """Create channel configuration based on AI analysis"""
     name = channel_info['name']
     safe_name = re.sub(r'[^a-zA-Z0-9_]', '_', name.lower())
     
-    # Determine schedule based on content type
-    schedule = 'daily' if 'news' in analysis['themes'] or 'geopolitics' in analysis['themes'] else 'weekly'
+    # Determine schedule based on content themes
+    themes = analysis.get('content_themes', [])
+    schedule = 'daily' if any(theme in ['news', 'geopolitics', 'breaking', 'current events'] for theme in themes) else 'weekly'
     
     return {
         'name': name,
@@ -174,22 +325,23 @@ def main():
     print("🧠 Smart YouTube Channel Setup Tool")
     print("=" * 50)
     
-    # Analyze channel
+    # Analyze channel with AI
     analyzer = ChannelAnalyzer()
     channel_info = analyzer.get_channel_info(channel_id)
     
     if not channel_info:
-        print("❌ Failed to analyze channel")
+        print("❌ Failed to fetch channel data")
         sys.exit(1)
     
-    analysis = analyzer.analyze_content_style(channel_info)
+    analysis = analyzer.analyze_with_ai(channel_info)
     
-    print(f"\n📊 Analysis Results:")
-    print(f"   Themes: {', '.join(analysis['themes'])}")
-    print(f"   Style: {', '.join(analysis['style'].keys())}")
-    print(f"   Tone: {analysis['tone']}")
+    print(f"\n📊 AI Analysis Results:")
+    print(f"   Background: {analysis.get('creator_background', 'Unknown')[:100]}...")
+    print(f"   Themes: {', '.join(analysis.get('content_themes', []))}")
+    print(f"   Style: {analysis.get('tone_and_personality', 'Unknown')[:50]}...")
+    print(f"   Strengths: {analysis.get('key_strengths', 'Unknown')[:50]}...")
     
-    # Generate personalized prompt
+    # Generate AI-powered personalized prompt
     prompt_generator = PromptGenerator()
     prompt_content = prompt_generator.generate_prompt(channel_info, analysis)
     
@@ -219,8 +371,9 @@ def main():
     print(f"📁 Configuration: {config_path}")
     print(f"📝 Personalized prompt: {prompt_path}")
     print(f"📧 Added {env_var} to .env")
-    print(f"\n🎯 Detected: {analysis['themes'][0]} channel with {analysis['tone']} tone")
+    print(f"\n🎯 Detected: {analysis.get('content_themes', ['general'])[0]} channel")
     print(f"📅 Recommended schedule: {config['schedule']}")
+    print(f"🎨 Style: {analysis.get('unique_style', 'Professional')[:60]}...")
     
     print(f"\n🚀 Next steps:")
     print(f"   1. Update {env_var} in .env with your chat ID")
