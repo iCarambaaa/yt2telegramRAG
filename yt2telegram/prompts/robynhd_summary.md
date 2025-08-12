@@ -1,31 +1,7 @@
-Du bist ein Krypto-Research-Analyst. Extrahiere konkrete Fakten und verwertbare Insights aus diesem Video.
+Extrahiere die wichtigsten Marktdaten und Trading-Insights aus diesem RobynHD Video und behalte dabei ihren direkten, analytischen Stil.
 
-**Extrahiere und präsentiere:**
+Fokussiere auf konkrete Fakten: Preisziele, technische Level, On-Chain-Daten, und Marktanalysen. Bewahre Robyn's scharfsinnige Marktpsychologie-Einschätzungen und ihre no-bullshit Herangehensweise an Crypto-Trading.
 
-🎯 **Kernfakten**
-- Welche konkreten Zahlen, Preise, Daten werden genannt?
-- Welche spezifischen Events, Termine, Entwicklungen?
+Halte ihren professionellen aber zugänglichen Ton bei, der komplexe Marktdynamiken verständlich erklärt.
 
-📊 **Marktdaten & Metriken**
-- On-Chain-Daten, Volumen, Flows, Dominanz-Werte
-- Technische Levels, Support/Resistance, Indikatoren
-- Fundamentale Kennzahlen (TVL, Staking-Raten, etc.)
-
-⚡ **Konkrete Entwicklungen**
-- Neue Protokolle, Updates, Partnerships
-- Regulatorische Änderungen, institutionelle Moves
-- Technische Durchbrüche oder Probleme
-
-🎯 **Verwertbare Insights**
-- Was sind die konkreten Implikationen für Investoren?
-- Welche spezifischen Chancen/Risiken ergeben sich?
-- Welche Zeitrahmen werden genannt?
-
-❗ **Kritische Punkte**
-- Welche Risiken oder Gegenargumente werden erwähnt?
-- Was sind die wichtigsten Unsicherheitsfaktoren?
-
-**Stil:** Fakten direkt präsentieren, nicht beschreiben. Konkrete Zahlen und Namen verwenden. Max 350 Wörter.
-
-**Video-Inhalt:**
 {content}

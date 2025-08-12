@@ -1,17 +1,13 @@
 # YouTube to Telegram Channel Manager
 
-- Monitors YouTube channels for new videos
-- Downloads and cleans video transcripts  
-- Generates AI-powered summaries
-- Sends notifications to Telegram chats
-- Includes Q&A bot functionality for channel content
+Automatically monitors YouTube channels, generates AI-powered summaries that preserve each creator's unique style, and sends them to Telegram.
 
 **Key Features:**
-- ✅ Sequential processing
-- ✅ Clean architecture with services/models/utils
-- ✅ Error handling and logging
-- ✅ Minimal dependencies
-- ✅ Production-ready reliability
+- ✅ **Smart Channel Setup** - Automated channel analysis and configuration
+- ✅ **Style-Preserving Summaries** - Maintains each creator's unique voice and perspective  
+- ✅ **Sequential Processing** - Reliable, easy-to-debug architecture
+- ✅ **Multi-Language Support** - Uses original language captions automatically
+- ✅ **Production Ready** - Comprehensive error handling and logging
 
 ---
 
@@ -38,7 +34,13 @@ cp .env.example .env
 # Edit .env with your API keys and tokens
 ```
 
-### 4. Run
+### 4. Add a Channel (Smart Setup)
+```bash
+# Automatically analyze and setup any YouTube channel
+python add_channel_smart.py UCbfYPyITQ-7l4upoX8nvctg
+```
+
+### 5. Run
 ```bash
 python run.py
 ```
@@ -70,10 +72,27 @@ yt2telegram/
 
 ---
 
-## Configuration
+## Smart Channel Setup
 
-### Channel Configuration
-Create YAML files in `yt2telegram/channels/`:
+The `add_channel_smart.py` tool automatically analyzes YouTube channels and creates optimized configurations:
+
+```bash
+# Add any YouTube channel
+python add_channel_smart.py <CHANNEL_ID>
+
+# Example: Add Two Minute Papers
+python add_channel_smart.py UCbfYPyITQ-7l4upoX8nvctg
+```
+
+**What it does:**
+- 🔍 **Analyzes** recent videos to understand content style and themes
+- 📝 **Generates** personalized prompts that preserve the creator's unique voice
+- ⚙️ **Creates** optimized channel configuration automatically
+- 🌍 **Detects** original language and uses appropriate captions
+- 📅 **Recommends** posting schedule based on content type
+
+### Manual Channel Configuration
+You can also create YAML files manually in `yt2telegram/channels/`:
 
 ```yaml
 name: "Your Channel"
@@ -81,7 +100,7 @@ channel_id: "UCxxxxxxxxxxxxxxxxxx"
 schedule: "daily"  # daily, weekly, monthly
 db_path: "yt2telegram/downloads/your_channel.db"
 cookies_file: "COOKIES_FILE"
-max_videos_to_fetch: 5
+max_videos_to_fetch: 3
 
 llm_config:
   llm_api_key_env: "LLM_PROVIDER_API_KEY"
@@ -92,13 +111,9 @@ llm_config:
 telegram_bots:
   - name: "Your Bot"
     token_env: "TELEGRAM_BOT_TOKEN"
-    chat_id_env: "TELEGRAM_CHAT_ID"
+    chat_id_env: "YOUR_CHANNEL_CHAT_ID"
 
-subtitles:
-  - lang: "en"
-    type: "manual"
-  - lang: "en" 
-    type: "automatic"
+subtitles: ["en"]
 ```
 
 ### Environment Variables (.env)
@@ -132,29 +147,47 @@ The `COOKIES_FILE` is essential for accessing age-restricted or private YouTube 
 
 ---
 
-## Features
+## Key Features
 
-### ✅ **Sequential Processing**
-- No async complexity - easier to debug
-- Clear execution flow
-- Better error handling
-- Reliable retry logic
+### 🧠 **Style-Preserving AI Summaries**
+- Maintains each creator's unique voice, humor, and perspective
+- Extracts key facts while preserving storytelling approach
+- Works with any content type: tech, crypto, geopolitics, science
 
-### ✅ **Clean Architecture** 
+### 🚀 **Smart Channel Setup**
+- Automated channel analysis and configuration
+- Detects content themes, style, and tone automatically
+- Generates personalized prompts for each creator
+- Uses original language captions automatically
+
+### ⚡ **Sequential Processing**
+- No async complexity - easier to debug and maintain
+- Clear execution flow with comprehensive error handling
+- Reliable retry logic and graceful failure recovery
+
+### 🏗️ **Clean Architecture** 
 - Separated concerns (models, services, utils)
-- Easy to test and maintain
-- Modular design
+- Easy to test, maintain, and extend
+- Modular design with minimal dependencies
 
-### ✅ **Production Ready**
-- Comprehensive logging
-- Database persistence
-- Error recovery
-- Configurable retry attempts
+### 🌍 **Multi-Channel & Multi-Language**
+- Monitor unlimited YouTube channels simultaneously
+- Individual configurations and schedules per channel
+- Automatic original language caption detection
+- Separate databases and processing pipelines
 
-### ✅ **Multi-Channel Support**
-- Monitor multiple YouTube channels
-- Individual configurations per channel
-- Separate databases and schedules
+---
+
+## Example Channels
+
+The project includes several pre-configured channels that demonstrate different content types and styles:
+
+- **Isaac Arthur** - Space technology and megastructures with grand cosmic storytelling
+- **RobynHD** - Crypto market analysis with sharp, no-nonsense insights  
+- **Two Minute Papers** - AI research with infectious enthusiasm for breakthroughs
+- **Ivan Yakovina** - Geopolitical analysis with insider perspective
+
+Each channel has a personalized prompt that preserves their unique voice while extracting key facts and insights.
 
 ---
 
@@ -223,6 +256,11 @@ Minimal and focused:
 - Verify bot token and chat ID
 - Check if bot is added to the chat/group
 - Ensure bot has send message permissions
+
+**"ffmpeg not found" warning**
+- This warning can be safely ignored for subtitle-only processing
+- Install ffmpeg if you plan to download video files
+- On Windows: `winget install ffmpeg` or download from ffmpeg.org
 
 ### Debug Mode
 ```bash

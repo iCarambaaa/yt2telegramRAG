@@ -7,7 +7,6 @@ class Video:
     id: str
     title: str
     channel_id: str
-    published_at: str
     raw_subtitles: Optional[str] = None
     cleaned_subtitles: Optional[str] = None
     summary: Optional[str] = None
@@ -18,8 +17,7 @@ class Video:
         return cls(
             id=entry["id"],
             title=entry.get("title", ""),
-            channel_id=channel_id,
-            published_at=entry.get("upload_date", "")
+            channel_id=channel_id
         )
     
     def to_dict(self) -> dict:
@@ -28,7 +26,6 @@ class Video:
             'id': self.id,
             'title': self.title,
             'channel_id': self.channel_id,
-            'published_at': self.published_at,
             'raw_subtitles': self.raw_subtitles,
             'cleaned_subtitles': self.cleaned_subtitles,
             'summary': self.summary

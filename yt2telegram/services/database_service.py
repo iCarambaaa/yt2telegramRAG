@@ -34,7 +34,6 @@ class DatabaseService:
                     id TEXT PRIMARY KEY,
                     title TEXT NOT NULL,
                     channel_id TEXT NOT NULL,
-                    published_at TEXT NOT NULL,
                     raw_subtitles TEXT,
                     cleaned_subtitles TEXT,
                     summary TEXT,
@@ -52,7 +51,7 @@ class DatabaseService:
             
             # Create indexes for better performance
             conn.execute('CREATE INDEX IF NOT EXISTS idx_videos_channel_id ON videos(channel_id)')
-            conn.execute('CREATE INDEX IF NOT EXISTS idx_videos_published_at ON videos(published_at)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_videos_processed_at ON videos(processed_at)')
 
     def is_video_processed(self, video_id: str) -> bool:
         """Check if video has already been processed"""
@@ -65,13 +64,12 @@ class DatabaseService:
         with self._get_connection() as conn:
             conn.execute('''
                 INSERT OR REPLACE INTO videos 
-                (id, title, channel_id, published_at, raw_subtitles, cleaned_subtitles, summary)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (id, title, channel_id, raw_subtitles, cleaned_subtitles, summary)
+                VALUES (?, ?, ?, ?, ?, ?)
             ''', (
                 video.id,
                 video.title,
                 video.channel_id,
-                video.published_at,
                 video.raw_subtitles,
                 video.cleaned_subtitles,
                 video.summary
@@ -103,7 +101,7 @@ class DatabaseService:
             cursor = conn.execute('''
                 SELECT * FROM videos 
                 WHERE channel_id = ? 
-                ORDER BY published_at DESC 
+                ORDER BY processed_at DESC 
                 LIMIT ?
             ''', (channel_id, limit))
             
@@ -113,7 +111,6 @@ class DatabaseService:
                     id=row['id'],
                     title=row['title'],
                     channel_id=row['channel_id'],
-                    published_at=row['published_at'],
                     raw_subtitles=row['raw_subtitles'],
                     cleaned_subtitles=row['cleaned_subtitles'],
                     summary=row['summary']

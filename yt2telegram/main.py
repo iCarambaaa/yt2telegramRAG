@@ -91,13 +91,7 @@ def process_channel(config: ChannelConfig) -> bool:
                 logger.info(f"Video {video.id} already processed, skipping")
                 continue
 
-            # Convert published_at format if needed
-            try:
-                if len(video.published_at) == 8:  # YYYYMMDD format
-                    published_at_iso = datetime.strptime(video.published_at, '%Y%m%d').isoformat()
-                    video.published_at = published_at_iso
-            except ValueError:
-                video.published_at = datetime.now().isoformat()
+            # No need to handle published_at - we use processed_at from database
 
             # Download and clean subtitles
             temp_subtitle_dir = Path(f"yt2telegram/downloads/{config.channel_id}/raw_subtitles")
