@@ -1,0 +1,21 @@
+# Netscape HTTP Cookie File
+# This is a generated file!  Do not edit.
+
+# TEMPLATE: Copy this to COOKIES_FILE and add your actual YouTube cookies
+# 
+# You can export cookies from your browser using extensions like:
+# - "Get cookies.txt" for Chrome/Firefox  
+# - "cookies.txt" for Chrome
+# - "Export Cookies" for Firefox
+# 
+# Steps to get cookies:
+# 1. Install a cookie export extension in your browser
+# 2. Go to youtube.com and make sure you're logged in
+# 3. Export cookies in Netscape format
+# 4. Copy this file to COOKIES_FILE and replace content with your exported cookies
+#
+# Format: domain	flag	path	secure	expiration	name	value
+# Example:
+# .youtube.com	TRUE	/	TRUE	1234567890	session_token	your_session_token_here
+#
+# WARNING: Keep COOKIES_FILE secure! It contains your login session data.

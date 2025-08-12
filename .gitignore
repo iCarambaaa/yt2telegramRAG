@@ -1,5 +1,7 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+*/__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 
@@ -143,5 +145,6 @@ Thumbs.db
 *.db-journal
 downloads/
 cookies.txt
-/channel_manager/channels/*
-!/channel_manager/channels/example_channel.yml
+COOKIES_FILE
+/yt2telegram/channels/*
+!/yt2telegram/channels/example_channel.yml

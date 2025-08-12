@@ -1,242 +1,248 @@
-# yt2telegramRAG
+# YouTube to Telegram Channel Manager
 
-A YouTube-to-Telegram RAG (Retrieval-Augmented Generation) system that:
+- Monitors YouTube channels for new videos
+- Downloads and cleans video transcripts  
+- Generates AI-powered summaries
+- Sends notifications to Telegram chats
+- Includes Q&A bot functionality for channel content
 
-- Monitors a YouTube channel for new videos
-- Extracts transcripts and generates AI summaries
-- Sends notifications to a Telegram chat
-- Answers user questions about the channel's content using the latest transcript and all previous summaries
+**Key Features:**
+- ✅ Sequential processing
+- ✅ Clean architecture with services/models/utils
+- ✅ Error handling and logging
+- ✅ Minimal dependencies
+- ✅ Production-ready reliability
 
 ---
 
-## Features
+## Quick Start
 
-- No YouTube API key required (uses yt-dlp)
-- Multi-language transcript support (Russian, German, English)
-- All configuration via `.env` file
-- Prompts are separated into YAML files for easy editing (`prompts/` directory)
-- SQLite database for persistent storage
-- Logging to file and console
-- Modular: monitor and bot run as separate scripts
-- Proper Python package structure
+### 1. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Setup Cookies (Important!)
+```bash
+# Copy the template
+cp COOKIES_FILE.example COOKIES_FILE
+
+# Add your YouTube cookies to COOKIES_FILE
+# Use browser extensions like "Get cookies.txt" to export your YouTube session
+```
+
+### 3. Configure Environment
+```bash
+# Copy and edit environment variables
+cp .env.example .env
+# Edit .env with your API keys and tokens
+```
+
+### 4. Run
+```bash
+python run.py
+```
 
 ---
 
 ## Project Structure
 
 ```
-yt2telegramRAG/
-├── src/
-│   └── yt2telegram/
-│       ├── __init__.py
-│       ├── __main__.py
-│       ├── core/
-│       │   ├── __init__.py
-│       │   └── youtube2telegram.py
-│       ├── bot/
-│       │   ├── __init__.py
-│       │   └── tg_bot.py
-│       ├── db/
-│       │   ├── __init__.py
-│       │   └── database.py
-│       └── utils/
-│           ├── __init__.py
-│           ├── subtitle_downloader.py
-│           ├── test_subtitles.py
-│           └── extract_clean_subtitles.py
-├── prompts/
-│   ├── Robyn/
-│   │   ├── robynHD_y2t.yml
-│   │   └── robyn_tg_bot.yml
-│   ├── tg_bot.yml
-│   └── youtube2telegram.yml
-├── DBs/
-│   └── robyn.db
-├── downloads/
-├── tests/
-├── .env
-├── .env.example
-├── requirements.txt
-├── setup.py
-├── README.md
-└── ...
+yt2telegram/
+├── main.py                 # Main entry point
+├── models/                 # Data models
+│   ├── video.py           # Video data structure
+│   └── channel.py         # Channel configuration
+├── services/              # Core business logic
+│   ├── youtube_service.py # YouTube API & downloads
+│   ├── telegram_service.py# Telegram notifications
+│   ├── database_service.py# SQLite operations
+│   └── llm_service.py     # AI summarization
+├── utils/                 # Helper functions
+│   ├── subtitle_cleaner.py
+│   ├── validators.py
+│   └── logging_config.py
+├── channels/              # Channel configurations
+│   ├── example_channel.yml
+│   └── your_channels.yml
+└── qna/                   # Q&A bot functionality
 ```
 
 ---
 
-## Setup
+## Configuration
 
-### 1. Clone & Install Dependencies
+### Channel Configuration
+Create YAML files in `yt2telegram/channels/`:
 
+```yaml
+name: "Your Channel"
+channel_id: "UCxxxxxxxxxxxxxxxxxx"
+schedule: "daily"  # daily, weekly, monthly
+db_path: "yt2telegram/downloads/your_channel.db"
+cookies_file: "COOKIES_FILE"
+max_videos_to_fetch: 5
+
+llm_config:
+  llm_api_key_env: "LLM_PROVIDER_API_KEY"
+  llm_model: "gpt-4o-mini"
+  llm_base_url: "https://openrouter.ai/api/v1"
+  llm_prompt_template_path: "yt2telegram/prompts/your_prompt.md"
+
+telegram_bots:
+  - name: "Your Bot"
+    token_env: "TELEGRAM_BOT_TOKEN"
+    chat_id_env: "TELEGRAM_CHAT_ID"
+
+subtitles:
+  - lang: "en"
+    type: "manual"
+  - lang: "en" 
+    type: "automatic"
+```
+
+### Environment Variables (.env)
 ```bash
-pip install -r requirements.txt
+# Telegram
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+
+# LLM Provider (OpenRouter, OpenAI, etc.)
+LLM_PROVIDER_API_KEY=your_api_key
+MODEL=gpt-4o-mini
+BASE_URL=https://openrouter.ai/api/v1
 ```
 
-Or install as a package:
+---
 
+## Cookie Setup (Critical!)
+
+The `COOKIES_FILE` is essential for accessing age-restricted or private YouTube content:
+
+1. **Install a cookie export extension:**
+   - Chrome: "Get cookies.txt" or "cookies.txt"
+   - Firefox: "Export Cookies"
+
+2. **Export your YouTube cookies:**
+   - Go to youtube.com and ensure you're logged in
+   - Use the extension to export cookies in Netscape format
+   - Save as `COOKIES_FILE` in the project root
+
+3. **Security:** The `COOKIES_FILE` contains your login session - keep it secure!
+
+---
+
+## Features
+
+### ✅ **Sequential Processing**
+- No async complexity - easier to debug
+- Clear execution flow
+- Better error handling
+- Reliable retry logic
+
+### ✅ **Clean Architecture** 
+- Separated concerns (models, services, utils)
+- Easy to test and maintain
+- Modular design
+
+### ✅ **Production Ready**
+- Comprehensive logging
+- Database persistence
+- Error recovery
+- Configurable retry attempts
+
+### ✅ **Multi-Channel Support**
+- Monitor multiple YouTube channels
+- Individual configurations per channel
+- Separate databases and schedules
+
+---
+
+## Deployment
+
+### Cron Job (Recommended)
 ```bash
-pip install -e .
+# Run every hour
+0 * * * * cd /path/to/project && python run.py >> logs/cron.log 2>&1
 ```
 
-### 2. Configure Environment
+### Systemd Service
+```ini
+[Unit]
+Description=YouTube to Telegram Channel Manager
+After=network.target
 
-- Copy `.env.example` to `.env` and fill in your secrets:
-  - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `LLM_PROVIDER_API_KEY`, `CHANNEL_ID`, `OPENAI_MODEL`, `OPENAI_MODEL_BOT`
-  - Set `YOUTUBE2TELEGRAM_PROMPT_FILE` and `TG_BOT_PROMPT_FILE` to point to your YAML prompt files (see `prompts/` directory)
-- Never commit your real `.env` to git.
+[Service]
+Type=oneshot
+WorkingDirectory=/path/to/project
+ExecStart=/usr/bin/python3 run.py
+User=your_user
 
-### 3. Database
+[Install]
+WantedBy=multi-user.target
+```
 
-- The SQLite database is created automatically on first run.
-- Default path: `./DBs/robyn.db` (override with `DB_PATH` in `.env`)
+### Docker
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+CMD ["python", "run.py"]
+```
 
 ---
 
-## Usage
+## Dependencies
 
-### As a Package
+Minimal and focused:
+- `python-dotenv` - Environment variables
+- `yt-dlp` - YouTube downloading
+- `openai` - LLM integration  
+- `requests` - HTTP requests
+- `pyyaml` - Configuration files
 
-After installing with `pip install -e .`:
+---
 
+## Troubleshooting
+
+### Common Issues
+
+**"No videos found"**
+- Check your `COOKIES_FILE` is properly configured
+- Verify the YouTube channel ID is correct
+- Ensure you have internet connectivity
+
+**"LLM API Error"**  
+- Verify your API key in `.env`
+- Check your API provider's rate limits
+- Ensure the model name is correct
+
+**"Telegram send failed"**
+- Verify bot token and chat ID
+- Check if bot is added to the chat/group
+- Ensure bot has send message permissions
+
+### Debug Mode
 ```bash
-# Monitor for new videos
-yt2telegram monitor
-
-# Run the Telegram bot
-yt2telegram bot
-
-# Download subtitles for a specific video
-yt2telegram download-subtitles --video-id VIDEO_ID
-
-# Test subtitle extraction for a specific video
-yt2telegram test-subtitles --video-id VIDEO_ID
-
-# Extract clean subtitles for a specific video
-yt2telegram extract-subtitles --video-id VIDEO_ID
+# Enable debug logging
+export LOG_LEVEL=DEBUG
+python run.py
 ```
-
-### Direct Script Execution
-
-```bash
-# Monitor for new videos
-python -m src.yt2telegram.core.youtube2telegram
-
-# Run the Telegram bot
-python -m src.yt2telegram.bot.tg_bot
-
-# Download subtitles for a specific video
-python -m src.yt2telegram.utils.subtitle_downloader VIDEO_ID
-
-# Test subtitle extraction for a specific video
-python -m src.yt2telegram.utils.test_subtitles VIDEO_ID
-
-# Extract clean subtitles for a specific video
-python -m src.yt2telegram.utils.extract_clean_subtitles VIDEO_ID
-```
-
-### Monitor Script (`youtube2telegram.py`)
-
-- Processes up to 10 new videos per run
-- Sends summaries to Telegram
-- To run once (for cron):
-  ```bash
-  yt2telegram monitor
-  ```
-- Example crontab (daily at 8am):
-  ```
-  0 8 * * * /usr/bin/yt2telegram monitor >> /path/to/yt2telegramRAG/monitor.log 2>&1
-  ```
-
-### Bot Script (`tg_bot.py`)
-
-- Listens for user questions in Telegram
-- Answers using latest transcript and all previous summaries
-- To run persistently:
-  ```bash
-  yt2telegram bot
-  ```
-- Example systemd service:
-
-  ```ini
-  [Unit]
-  Description=yt2telegramRAG Telegram Bot
-  After=network.target
-
-  [Service]
-  Type=simple
-  WorkingDirectory=/path/to/yt2telegramRAG
-  ExecStart=/usr/bin/yt2telegram bot
-  Restart=always
-  User=youruser
-
-  [Install]
-  WantedBy=multi-user.target
-  ```
-
----
-
-## Prompts
-
-- Prompts for both scripts are stored in YAML files in the `prompts/` directory.
-- Set the environment variables `YOUTUBE2TELEGRAM_PROMPT_FILE` and `TG_BOT_PROMPT_FILE` to point to these files.
-- Example YAML for `prompts/youtube2telegram.yml`:
-
-  ```yaml
-  summary_prompt: |
-    Analyze this YouTube video and provide a concise summary:
-    ...
-  ```
-
-  - Example YAML for `prompts/bot.yml`:
-
-  ```yaml
-  qa_prompt: |
-    You are a helpful assistant for a YouTube-to-Telegram RAG bot.
-    ...
-  ```
-
----
-
-## Logging & Monitoring
-
-- Logs are written to `yt2telegramRAG.log` and `yt2telegramRAG-bot.log`.
-- All errors and important actions are logged.
-- For advanced monitoring, integrate with systemd journal, logrotate, or a cloud logging service.
-
----
-
-## Security & Server Notes
-
-- No inbound ports or SSL needed (all outbound HTTPS)
-- Ensure outbound internet access is allowed
-- Secure `.env` and database files (set correct permissions)
-- Keep your system and Python packages up to date
-
----
-
-## FAQ
-
-**How do I get my Telegram bot token and chat ID?**
-
-- Create a bot with [@BotFather](https://t.me/BotFather) and get the token.
-- Add the bot to your chat/group, send a message, then use the Telegram API `/getUpdates` to find your chat ID.
-
-**How do I change the OpenAI model?**
-
-- Set `OPENAI_MODEL` and `OPENAI_MODEL_BOT` in your `.env` file.
-
-**How do I add the bot to a new chat/group?**
-
-- Add the bot to the group via Telegram, then update `TELEGRAM_CHAT_ID` in `.env`.
 
 ---
 
 ## Contributing
 
-Pull requests and issues are welcome!
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
 ---
 
 ## License
 
-MIT
+MIT License - see LICENSE file for details.
