@@ -115,19 +115,20 @@ Channel ID: {channel_info['id']}
 Please provide a comprehensive analysis in JSON format with these fields:
 
 {{
-    "creator_background": "What you know about this creator, their expertise, background",
+    "creator_background": "What you know about this creator, their expertise, background, and focus",
     "content_themes": ["primary", "secondary", "themes"],
-    "unique_style": "Detailed description of their distinctive communication style, personality, humor",
+    "content_type": "informational OR educational OR entertainment OR hybrid",
+    "unique_style": "Detailed description of their distinctive communication style and approach",
     "storytelling_approach": "How they structure and present information",
     "target_audience": "Who watches this channel and why",
     "key_strengths": "What makes this creator special and worth following",
-    "tone_and_personality": "Their characteristic tone, energy level, personality traits",
+    "tone_and_personality": "Their characteristic tone and personality traits",
     "typical_content_structure": "How they typically organize their content",
     "language_and_terminology": "Specific words, phrases, or terminology they use",
-    "summary_focus": "What aspects should be emphasized when summarizing their content"
+    "summary_focus": "What aspects should be emphasized when summarizing - key facts, main insights, and unique perspectives"
 }}
 
-Be specific and detailed. Use your knowledge of this creator if you recognize them."""
+Focus on factual content capture while preserving the creator's unique style and approach. Be specific and detailed. Use your knowledge of this creator if you recognize them."""
         
         try:
             response = self.llm_client.chat.completions.create(
@@ -221,24 +222,25 @@ class PromptGenerator:
         """Generate highly personalized prompt based on AI analysis"""
         print(f"🎯 Generating personalized prompt for {channel_info['name']}...")
         
-        prompt_generation_request = f"""Based on this detailed analysis of {channel_info['name']}, create a perfect summarization prompt that will preserve their unique voice and style.
+        prompt_generation_request = f"""Based on this detailed analysis of {channel_info['name']}, create a perfect summarization prompt that will extract key facts and insights while preserving their unique voice and style.
 
 CHANNEL ANALYSIS:
 {json.dumps(analysis, indent=2)}
 
 Create a prompt that:
-1. Captures their distinctive communication style and personality
-2. Focuses on the type of information their audience values
-3. Maintains their characteristic tone and approach
-4. Extracts key facts while preserving what makes them special
-5. Is specific enough to generate summaries that feel authentic to this creator
+1. Extracts the key facts, insights, and concrete information from their content
+2. Captures their distinctive communication style and personality
+3. Focuses on the type of information their audience values most
+4. Maintains their characteristic tone and approach
+5. Preserves what makes them special while prioritizing factual content
+6. Is specific enough to generate summaries that feel authentic to this creator
 
-The prompt should be professional but capture the essence of what makes {channel_info['name']} unique.
+The prompt should prioritize factual content extraction while maintaining the creator's unique style.
 
 Format the prompt as a clear instruction that will be used to summarize their video content. End with {{content}} placeholder.
 
 Example structure:
-"Extract [specific type of content] from this {channel_info['name']} video while maintaining [their specific style traits].
+"Extract the key facts and insights from this {channel_info['name']} video while maintaining [their specific style traits].
 
 Focus on [what their audience cares about] and preserve [their unique characteristics].
 
@@ -283,7 +285,8 @@ Focus on concrete information and maintain {channel_name}'s distinctive communic
 def create_channel_config(channel_info: Dict, analysis: Dict) -> Dict:
     """Create channel configuration based on AI analysis"""
     name = channel_info['name']
-    safe_name = re.sub(r'[^a-zA-Z0-9_]', '_', name.lower())
+    # Create clean safe name: replace spaces/special chars with single underscore, remove consecutive underscores
+    safe_name = re.sub(r'[^a-zA-Z0-9]+', '_', name.lower()).strip('_')
     
     # Determine schedule based on content themes
     themes = analysis.get('content_themes', [])
@@ -347,7 +350,8 @@ def main():
     
     # Create configuration
     config = create_channel_config(channel_info, analysis)
-    safe_name = re.sub(r'[^a-zA-Z0-9_]', '_', channel_info['name'].lower())
+    # Create clean safe name: replace spaces/special chars with single underscore, remove consecutive underscores
+    safe_name = re.sub(r'[^a-zA-Z0-9]+', '_', channel_info['name'].lower()).strip('_')
     
     # Create directories
     Path("yt2telegram/channels").mkdir(parents=True, exist_ok=True)

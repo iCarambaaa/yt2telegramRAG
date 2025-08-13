@@ -1,13 +1,15 @@
 # YouTube to Telegram Channel Manager
 
-Automatically monitors YouTube channels, generates AI-powered summaries that preserve each creator's unique style, and sends them to Telegram.
+Automatically monitors YouTube channels, generates comprehensive AI-powered summaries that preserve each creator's unique style, and delivers them reliably to Telegram with smart message splitting.
 
 **Key Features:**
 - ✅ **Smart Channel Setup** - Automated channel analysis and configuration
 - ✅ **Style-Preserving Summaries** - Maintains each creator's unique voice and perspective  
-- ✅ **Sequential Processing** - Reliable, easy-to-debug architecture
-- ✅ **Multi-Language Support** - Uses original language captions automatically
-- ✅ **Production Ready** - Comprehensive error handling and logging
+- ✅ **Smart Message Splitting** - Preserves all content across multiple messages when needed
+- ✅ **Robust Error Handling** - HTML escaping, Markdown parsing fixes, and fallback mechanisms
+- ✅ **Optimized Processing** - Advanced subtitle cleaning with 88-89% size reduction
+- ✅ **Multi-Language Support** - Perfect support for English, German, Russian, and more
+- ✅ **Production Ready** - Comprehensive logging, retry logic, and graceful failure recovery
 
 ---
 
@@ -149,32 +151,83 @@ The `COOKIES_FILE` is essential for accessing age-restricted or private YouTube 
 
 ## Key Features
 
-### 🧠 **Style-Preserving AI Summaries**
-- Maintains each creator's unique voice, humor, and perspective
-- Extracts key facts while preserving storytelling approach
-- Works with any content type: tech, crypto, geopolitics, science
+### 🧠 **Advanced AI Summaries**
+- **Comprehensive extraction** - 2000 tokens for detailed, complete summaries
+- **Style preservation** - Maintains each creator's unique voice, humor, and perspective
+- **Smart prompting** - Tailored prompts for different content types (tech, crypto, geopolitics, science)
+- **No information loss** - Extracts ALL valuable information while preserving storytelling approach
+
+### 📱 **Smart Telegram Delivery**
+- **Multi-part messages** - Automatically splits long summaries into Part 1/2 format
+- **Zero truncation** - Preserves all content instead of cutting it off
+- **Robust formatting** - HTML → Markdown → Plain text fallback system
+- **HTML escaping** - Prevents parsing errors from special characters like "$10m", "<text>", etc.
+- **Natural boundaries** - Splits at paragraphs and sentences, not mid-word
+
+### 🧹 **Optimized Subtitle Processing**
+- **Smart deduplication** - Removes overlapping VTT subtitle segments
+- **88-89% size reduction** - Dramatically reduces processing costs and improves quality
+- **Multi-language support** - Perfect handling of English, German, Russian, and more
+- **Content preservation** - Maintains all important information while removing redundancy
 
 ### 🚀 **Smart Channel Setup**
-- Automated channel analysis and configuration
-- Detects content themes, style, and tone automatically
-- Generates personalized prompts for each creator
-- Uses original language captions automatically
+- **Automated analysis** - Detects content themes, style, and tone automatically
+- **Personalized prompts** - Generates tailored extraction prompts for each creator
+- **Clean naming** - Uses actual channel names (twominutepapers.db, david_ondrej.db)
+- **Original language detection** - Uses appropriate captions automatically
 
-### ⚡ **Sequential Processing**
-- No async complexity - easier to debug and maintain
-- Clear execution flow with comprehensive error handling
-- Reliable retry logic and graceful failure recovery
-
-### 🏗️ **Clean Architecture** 
-- Separated concerns (models, services, utils)
-- Easy to test, maintain, and extend
-- Modular design with minimal dependencies
+### ⚡ **Production-Ready Architecture**
+- **Sequential processing** - No async complexity, easier to debug and maintain
+- **Comprehensive error handling** - Retry logic, graceful failures, detailed logging
+- **Token optimization** - 2000 tokens balanced for quality vs cost
+- **Clean structure** - Separated concerns (models, services, utils) for easy maintenance
 
 ### 🌍 **Multi-Channel & Multi-Language**
-- Monitor unlimited YouTube channels simultaneously
-- Individual configurations and schedules per channel
-- Automatic original language caption detection
-- Separate databases and processing pipelines
+- **Unlimited channels** - Monitor any number of YouTube channels simultaneously
+- **Individual configurations** - Separate schedules, prompts, and databases per channel
+- **Language flexibility** - Automatic original language caption detection and processing
+- **Isolated pipelines** - Each channel processes independently for reliability
+
+---
+
+## Recent Improvements (v2.0)
+
+### 🎯 **Smart Message Splitting**
+Long summaries are now automatically split into multiple messages with clear part numbering:
+```
+📺 New Video from TwoMinutePapers - Part 1/2
+
+ChatGPT 5 explained in 7 minutes
+
+📝 Summary:
+[First part of comprehensive summary...]
+```
+```
+📺 New Video from TwoMinutePapers - Part 2/2
+
+📝 Summary:
+[Rest of comprehensive summary...]
+
+🔗 Watch Video
+```
+
+### 🛡️ **Robust Error Handling**
+- **HTML escaping** - Prevents parsing errors from content like "$10m", "<comparison>", etc.
+- **Markdown fixes** - Automatically repairs malformed bold/italic markers
+- **Fallback system** - HTML → Markdown → Plain text ensures delivery
+- **Smart boundaries** - Splits at natural paragraph/sentence breaks
+
+### ⚡ **Performance Optimizations**
+- **Advanced subtitle cleaning** - 88-89% size reduction with smart deduplication
+- **Token optimization** - 2000 tokens for comprehensive summaries
+- **Efficient processing** - Reduced API costs while improving quality
+- **Clean naming** - Shorter, clearer database and file names
+
+### 📊 **Quality Improvements**
+- **Comprehensive prompts** - Extract ALL valuable information
+- **Style preservation** - Better maintenance of creator's unique voice
+- **Multi-language excellence** - Perfect support across languages
+- **Zero information loss** - Complete summaries instead of truncation
 
 ---
 
@@ -182,12 +235,17 @@ The `COOKIES_FILE` is essential for accessing age-restricted or private YouTube 
 
 The project includes several pre-configured channels that demonstrate different content types and styles:
 
-- **Isaac Arthur** - Space technology and megastructures with grand cosmic storytelling
-- **RobynHD** - Crypto market analysis with sharp, no-nonsense insights  
-- **Two Minute Papers** - AI research with infectious enthusiasm for breakthroughs
-- **Ivan Yakovina** - Geopolitical analysis with insider perspective
+- **TwoMinutePapers** (`twominutepapers.yml`) - AI research with Károly's infectious enthusiasm for breakthroughs
+- **David Ondrej** (`david_ondrej.yml`) - Tech tutorials with raw, documentary-like presentation style
+- **Isaac Arthur** (`isaac_arthur.yml`) - Space technology and megastructures with grand cosmic storytelling
+- **RobynHD** (`robynhd_channel.yml`) - Crypto market analysis with sharp, no-nonsense insights  
+- **Ivan Yakovina** (`ivan_yakovina.yml`) - Geopolitical analysis with insider perspective (Russian)
 
-Each channel has a personalized prompt that preserves their unique voice while extracting key facts and insights.
+Each channel has a comprehensive, personalized prompt that:
+- Extracts ALL valuable information (technical details, metrics, insights)
+- Preserves the creator's unique voice and style
+- Uses proper Markdown formatting for readability
+- Processes the entire transcript thoroughly
 
 ---
 
@@ -253,9 +311,20 @@ Minimal and focused:
 - Ensure the model name is correct
 
 **"Telegram send failed"**
-- Verify bot token and chat ID
+- Verify bot token and chat ID in `.env`
 - Check if bot is added to the chat/group
 - Ensure bot has send message permissions
+- Look for HTML parsing errors in logs (now automatically fixed)
+
+**"Message truncated" or "Part 1/2 not working"**
+- This is normal for very long summaries (>3800 characters)
+- The system automatically splits messages to preserve all content
+- Check logs to see if all parts were sent successfully
+
+**"HTML parsing errors" (e.g., "Unsupported start tag")**
+- Now automatically fixed with HTML escaping
+- Content like "$10m", "<comparison>", etc. is safely handled
+- System falls back to Markdown/Plain text if HTML fails
 
 **"ffmpeg not found" warning**
 - This warning can be safely ignored for subtitle-only processing

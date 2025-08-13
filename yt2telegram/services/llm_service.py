@@ -56,23 +56,39 @@ class LLMService:
     def summarize(self, content: str) -> str:
         """Generate summary of video content"""
         if not content:
-            return ""
+            logger.warning("Empty content provided for summarization")
+            return "No content to summarize"
+
+        # Truncate content if too long (keep within reasonable token limits)
+        max_content_chars = 50000  # Roughly 12-15k tokens
+        if len(content) > max_content_chars:
+            logger.info(f"Content too long ({len(content)} chars), truncating to {max_content_chars}")
+            content = content[:max_content_chars] + "...\n\n[Content truncated due to length]"
 
         prompt = self.prompt_template.format(content=content)
+        logger.info(f"Generating summary for content of {len(content)} characters")
 
         for attempt in range(self.retry_attempts):
             try:
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[
-                        {"role": "system", "content": "You are a concise summarization assistant."},
+                        {"role": "system", "content": "You are an expert content analyst who creates comprehensive, detailed summaries while preserving the original author's voice and style."},
                         {"role": "user", "content": prompt}
                     ],
-                    max_tokens=500,
+                    max_tokens=2000,  # Increased back to 2000 - issue was Markdown parsing, not length
                     temperature=0.7
                 )
                 summary = response.choices[0].message.content.strip()
-                logger.info(f"Generated summary: {summary[:100]}...")
+                
+                # Log more details about the response
+                logger.info(f"Generated summary length: {len(summary)} characters")
+                logger.info(f"Summary preview: {summary[:200]}...")
+                
+                if not summary:
+                    logger.warning("LLM returned empty summary")
+                    return "Summary generation failed - empty response from LLM"
+                
                 return summary
                 
             except Exception as e:

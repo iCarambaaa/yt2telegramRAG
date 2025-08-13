@@ -146,10 +146,20 @@ Thumbs.db
 *.db-journal
 downloads/
 cookies.txt
+logs/
+backups/
+
+# Sensitive configuration files
+COOKIES_FILE
+.env
+
+# Keep example files but ignore actual configurations
 /yt2telegram/channels/*
 !/yt2telegram/channels/example_channel.yml
 /yt2telegram/prompts/*
 !/yt2telegram/prompts/example_summary.md
 
-
-COOKIES_FILE
+# Temporary and test files
+final_test_results.py
+test_*.py
+*_test.py
