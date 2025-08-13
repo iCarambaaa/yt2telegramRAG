@@ -27,40 +27,45 @@ class InputValidator:
         return channel_id
 
 class Sanitizer:
-    @staticmethod
-    def escape_markdown_v2(text: str) -> str:
-        """Escape special characters for Telegram MarkdownV2"""
-        if not text:
-            return text
-        # MarkdownV2 requires escaping these characters: _*[]()~`>#+-=|{}.!
-        escape_chars = r'_*[]()~`>#+-=|{}.!'
-        escaped_text = ""
-        for char in text:
-            if char in escape_chars:
-                escaped_text += f"\\{char}"
-            else:
-                escaped_text += char
-        return escaped_text
+
     
     @staticmethod
     def escape_html(text: str) -> str:
-        """Escape HTML special characters to prevent parsing errors"""
+        """Escape HTML special characters according to Telegram Bot API"""
         if not text:
             return text
         
-        # Escape HTML special characters
+        # Telegram HTML formatting requires escaping these characters
+        # According to: https://core.telegram.org/bots/api#html-style
         html_escapes = {
-            '&': '&amp;',
+            '&': '&amp;',   # Must be first to avoid double-escaping
             '<': '&lt;',
             '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#x27;'
         }
         
         for char, escape in html_escapes.items():
             text = text.replace(char, escape)
         
         return text
+    
+    @staticmethod
+    def escape_markdown_v2(text: str) -> str:
+        """Escape special characters for Telegram MarkdownV2 according to Bot API"""
+        if not text:
+            return text
+        
+        # According to Telegram Bot API, these characters must be escaped in MarkdownV2:
+        # _*[]()~`>#+-=|{}.!
+        escape_chars = r'_*[]()~`>#+-=|{}.!'
+        escaped_text = ""
+        
+        for char in text:
+            if char in escape_chars:
+                escaped_text += f"\\{char}"
+            else:
+                escaped_text += char
+        
+        return escaped_text
     
     @staticmethod
     def clean_for_telegram(text: str) -> str:
@@ -78,9 +83,10 @@ class Sanitizer:
         text = re.sub(r'\[([^\]]*?)(?:\n|$)', r'\1', text)  # Fix unclosed brackets
         text = re.sub(r'(?:^|\n)([^\[]*?)\]', r'\1', text)  # Fix unopened brackets
         
-        # Step 2: Clean problematic Markdown safely
+        # Step 2: Clean problematic Markdown safely for Telegram
         text = re.sub(r'^#+\s*', '', text, flags=re.MULTILINE)  # Remove # headers
-        text = re.sub(r'\*\*(.*?)\*\*', r'*\1*', text)  # Convert **bold** to *bold*
+        text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # Remove **bold** (will be added by HTML/Markdown formatting)
+        text = re.sub(r'\*(.*?)\*', r'\1', text)  # Remove *italic* (will be added by formatting)
         text = re.sub(r'`([^`]*?)`', r'"\1"', text)  # Convert `code` to "code"
         text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)  # Remove code blocks
         text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)  # Remove [text](link)
@@ -96,6 +102,10 @@ class Sanitizer:
         text = re.sub(r'<([^>]*?)(?:\n|$)', r'&lt;\1', text)  # Fix unclosed < brackets
         text = re.sub(r'(?:^|\n)([^<]*?)>', r'\1&gt;', text)  # Fix unopened > brackets
         
+        # Fix spacing issues
+        text = re.sub(r'\s+', ' ', text)  # Normalize multiple spaces
+        text = re.sub(r'\n\s*\n', '\n\n', text)  # Normalize multiple newlines
+        
         # Step 4: Fix punctuation
         text = re.sub(r'\.{3,}', '...', text)  # Normalize ellipsis
         text = re.sub(r'!{2,}', '!', text)  # Single exclamation
@@ -108,6 +118,20 @@ class Sanitizer:
         text = text.strip()
         
         return text
+    
+    @staticmethod
+    def validate_telegram_message(text: str) -> bool:
+        """Validate message meets Telegram Bot API requirements"""
+        if not text:
+            return False
+        
+        # Telegram message limits according to Bot API
+        MAX_MESSAGE_LENGTH = 4096
+        
+        if len(text) > MAX_MESSAGE_LENGTH:
+            return False
+        
+        return True
     
     @staticmethod
     def split_for_telegram(text: str, max_length: int = 3800) -> List[str]:

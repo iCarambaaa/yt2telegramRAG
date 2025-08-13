@@ -112,7 +112,7 @@ class TelegramService:
         clean_summary = Sanitizer.clean_for_telegram(summary)
         summary_parts = Sanitizer.split_for_telegram(clean_summary, 3800)  # Leave room for headers
         
-        # Create channel-specific headers
+        # Create channel-specific headers (lol)
         if channel_type == "isaac_arthur":
             header = "🚀 New Isaac Arthur Video"
             footer = "#IsaacArthur #SciFi #FutureTech"
@@ -136,9 +136,9 @@ class TelegramService:
             else:
                 part_header = header
             
-            # Approach 1: Simple HTML formatting (most reliable)
+            # Approach 1: HTML formatting (most reliable according to Telegram docs)
             try:
-                # Escape HTML in content to prevent parsing errors
+                # Properly escape HTML content according to Telegram Bot API
                 escaped_title = Sanitizer.escape_html(video_title)
                 escaped_summary = Sanitizer.escape_html(summary_part)
                 escaped_footer = Sanitizer.escape_html(footer) if footer else ""
@@ -148,7 +148,7 @@ class TelegramService:
                     html_message += f"<b>{escaped_title}</b>\n\n"
                 html_message += f"📝 <b>Summary:</b>\n{escaped_summary}\n\n"
                 if part_index == total_parts - 1:  # Only add link to last part
-                    html_message += f"🔗 <a href='{video_url}'>Watch Video</a>"
+                    html_message += f"🔗 <a href=\"{video_url}\">Watch Video</a>"
                     if escaped_footer:
                         html_message += f"\n\n{escaped_footer}"
                 
@@ -159,24 +159,31 @@ class TelegramService:
             except Exception as e:
                 logger.warning(f"HTML formatting failed for {channel_name} part {part_index + 1}: {e}")
             
-            # Approach 2: Basic Markdown (if HTML fails)
+            # Approach 2: MarkdownV2 (if HTML fails)
             if not part_success:
                 try:
-                    md_message = f"*{part_header}*\n\n"
-                    if part_index == 0:
-                        md_message += f"*{video_title}*\n\n"
-                    md_message += f"📝 *Summary:*\n{summary_part}\n\n"
-                    if part_index == total_parts - 1:
-                        md_message += f"🔗 {video_url}"
-                        if footer:
-                            md_message += f"\n\n{footer}"
+                    # Properly escape MarkdownV2 content according to Telegram Bot API
+                    escaped_header = Sanitizer.escape_markdown_v2(part_header)
+                    escaped_title = Sanitizer.escape_markdown_v2(video_title)
+                    escaped_summary = Sanitizer.escape_markdown_v2(summary_part)
+                    escaped_footer = Sanitizer.escape_markdown_v2(footer) if footer else ""
+                    escaped_url = Sanitizer.escape_markdown_v2(video_url)
                     
-                    self.send_message(md_message, parse_mode="Markdown")
-                    logger.info(f"Sent Markdown formatted message part {part_index + 1}/{total_parts} for {channel_name}")
+                    md_message = f"*{escaped_header}*\n\n"
+                    if part_index == 0:
+                        md_message += f"*{escaped_title}*\n\n"
+                    md_message += f"📝 *Summary:*\n{escaped_summary}\n\n"
+                    if part_index == total_parts - 1:
+                        md_message += f"🔗 [Watch Video]({escaped_url})"
+                        if escaped_footer:
+                            md_message += f"\n\n{escaped_footer}"
+                    
+                    self.send_message(md_message, parse_mode="MarkdownV2")
+                    logger.info(f"Sent MarkdownV2 formatted message part {part_index + 1}/{total_parts} for {channel_name}")
                     part_success = True
                     
                 except Exception as e:
-                    logger.warning(f"Markdown formatting failed for {channel_name} part {part_index + 1}: {e}")
+                    logger.warning(f"MarkdownV2 formatting failed for {channel_name} part {part_index + 1}: {e}")
             
             # Approach 3: Plain text (guaranteed to work)
             if not part_success:
