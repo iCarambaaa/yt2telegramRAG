@@ -56,6 +56,7 @@ class Sanitizer:
         
         # According to Telegram Bot API, these characters must be escaped in MarkdownV2:
         # _*[]()~`>#+-=|{}.!
+        # But we need to be careful not to escape characters that are part of formatting
         escape_chars = r'_*[]()~`>#+-=|{}.!'
         escaped_text = ""
         
@@ -67,57 +68,63 @@ class Sanitizer:
         
         return escaped_text
     
+
+    
     @staticmethod
     def clean_for_telegram(text: str) -> str:
-        """Clean text for safe Telegram sending with robust Markdown parsing fix"""
+        """Clean markdown text for Telegram messages"""
         if not text:
             return text
         
-        # Step 1: Fix malformed Markdown that causes parsing errors
-        # Fix unmatched bold/italic markers
-        text = re.sub(r'\*\*([^*]*)\*(?!\*)', r'**\1**', text)  # Fix unmatched bold
-        text = re.sub(r'(?<!\*)\*([^*]*)\*\*', r'**\1**', text)  # Fix unmatched bold
-        text = re.sub(r'(?<!\*)\*([^*\n]*?)(?!\*)', r'\1', text)  # Remove single asterisks
-        
-        # Fix unmatched brackets and parentheses
-        text = re.sub(r'\[([^\]]*?)(?:\n|$)', r'\1', text)  # Fix unclosed brackets
-        text = re.sub(r'(?:^|\n)([^\[]*?)\]', r'\1', text)  # Fix unopened brackets
-        
-        # Step 2: Clean problematic Markdown safely for Telegram
-        text = re.sub(r'^#+\s*', '', text, flags=re.MULTILINE)  # Remove # headers
-        text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)  # Remove **bold** (will be added by HTML/Markdown formatting)
-        text = re.sub(r'\*(.*?)\*', r'\1', text)  # Remove *italic* (will be added by formatting)
-        text = re.sub(r'`([^`]*?)`', r'"\1"', text)  # Convert `code` to "code"
-        text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)  # Remove code blocks
-        text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)  # Remove [text](link)
-        
-        # Step 3: Remove problematic characters and patterns
-        text = re.sub(r'[~#{}+=\[\]]', '', text)  # Remove special chars
+        # Clean problematic patterns while preserving markdown
+        text = re.sub(r'[~{}+=\[\]]', '', text)  # Remove special chars
         text = re.sub(r'[|]', ' ', text)  # Remove table separators
-        text = re.sub(r'[-]{3,}', '', text)  # Remove horizontal rules
+        text = re.sub(r'[-]{3,}', '\n━━━━━━━━━━\n', text)  # Convert horizontal rules to visual separator
         text = re.sub(r'>\s*', '', text, flags=re.MULTILINE)  # Remove blockquotes
         
-        # Fix common patterns that break HTML parsing
-        text = re.sub(r'\$(\d+)([a-zA-Z])', r'$\1 \2', text)  # Fix "$10m" → "$10 m"
-        text = re.sub(r'<([^>]*?)(?:\n|$)', r'&lt;\1', text)  # Fix unclosed < brackets
-        text = re.sub(r'(?:^|\n)([^<]*?)>', r'\1&gt;', text)  # Fix unopened > brackets
-        
         # Fix spacing issues
-        text = re.sub(r'\s+', ' ', text)  # Normalize multiple spaces
-        text = re.sub(r'\n\s*\n', '\n\n', text)  # Normalize multiple newlines
+        text = re.sub(r'[ \t]+', ' ', text)  # Normalize spaces/tabs but keep newlines
+        text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)  # Max 2 consecutive newlines
         
-        # Step 4: Fix punctuation
+        # Fix punctuation
         text = re.sub(r'\.{3,}', '...', text)  # Normalize ellipsis
         text = re.sub(r'!{2,}', '!', text)  # Single exclamation
         text = re.sub(r'\?{2,}', '?', text)  # Single question mark
-        text = re.sub(r'--+', ' - ', text)  # Replace multiple dashes
+        text = re.sub(r'--+', ' — ', text)  # Replace dashes with em-dash
         
-        # Step 5: Clean up whitespace
+        # Final cleanup
         text = re.sub(r'\n{3,}', '\n\n', text)  # Max 2 consecutive newlines
-        text = re.sub(r' {2,}', ' ', text)  # Max 1 space
         text = text.strip()
         
         return text
+    
+
+    @staticmethod
+    def convert_markdown_to_clean_html(text: str) -> str:
+        """Convert simple markdown formatting to clean Telegram HTML"""
+        if not text:
+            return text
+        
+        # Convert **bold** to <b>bold</b>
+        text = re.sub(r'\*\*([^*\n]+?)\*\*', r'<b>\1</b>', text)
+        
+        # Convert `code` to <code>code</code>
+        text = re.sub(r'`([^`\n]+?)`', r'<code>\1</code>', text)
+        
+        # Escape any remaining HTML characters in the text
+        # But preserve our newly created <b> and <code> tags
+        parts = re.split(r'(</?(?:b|code)>)', text)
+        escaped_parts = []
+        
+        for part in parts:
+            if part in ['<b>', '</b>', '<code>', '</code>']:
+                escaped_parts.append(part)
+            else:
+                # Escape HTML in regular text but preserve line breaks and structure
+                escaped_part = part.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                escaped_parts.append(escaped_part)
+        
+        return ''.join(escaped_parts)
     
     @staticmethod
     def validate_telegram_message(text: str) -> bool:

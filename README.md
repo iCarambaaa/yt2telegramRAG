@@ -160,8 +160,9 @@ The `COOKIES_FILE` is essential for accessing age-restricted or private YouTube 
 ### 📱 **Smart Telegram Delivery**
 - **Multi-part messages** - Automatically splits long summaries into Part 1/2 format
 - **Zero truncation** - Preserves all content instead of cutting it off
-- **Robust formatting** - HTML → Markdown → Plain text fallback system
-- **HTML escaping** - Prevents parsing errors from special characters like "$10m", "<text>", etc.
+- **Robust formatting** - Markdown → HTML → Plain text fallback system
+- **Emoji-rich structure** - Uses 🎯 📋 🔸 💡 ⚙️ emojis for visual appeal and easy scanning
+- **Clean conversion** - Converts **bold** and `code` markdown to proper HTML tags
 - **Natural boundaries** - Splits at paragraphs and sentences, not mid-word
 
 ### 🧹 **Optimized Subtitle Processing**
@@ -214,7 +215,7 @@ ChatGPT 5 explained in 7 minutes
 ### 🛡️ **Robust Error Handling**
 - **HTML escaping** - Prevents parsing errors from content like "$10m", "<comparison>", etc.
 - **Markdown fixes** - Automatically repairs malformed bold/italic markers
-- **Fallback system** - HTML → Markdown → Plain text ensures delivery
+- **Fallback system** - Markdown → HTML → Plain text ensures delivery
 - **Smart boundaries** - Splits at natural paragraph/sentence breaks
 
 ### ⚡ **Performance Optimizations**
@@ -244,7 +245,8 @@ The project includes several pre-configured channels that demonstrate different 
 Each channel has a comprehensive, personalized prompt that:
 - Extracts ALL valuable information (technical details, metrics, insights)
 - Preserves the creator's unique voice and style
-- Uses proper Markdown formatting for readability
+- Uses emoji-rich formatting (🎯 **headers**, 📊 **metrics**, 💻 `code`) for visual appeal
+- Converts simple markdown to clean HTML automatically
 - Processes the entire transcript thoroughly
 
 ---

@@ -3,6 +3,7 @@ import logging
 from typing import List, Dict
 import time
 import requests
+import re
 
 from ..utils.validators import Sanitizer
 
@@ -103,6 +104,8 @@ class TelegramService:
                     logger.error(f"Failed to send message to {bot['name']} after {self.retry_attempts} attempts")
                     raise  # Re-raise the exception so the caller can handle it
 
+
+    
     def send_video_notification(self, channel_name: str, video_title: str, video_id: str, summary: str, channel_type: str = "default"):
         """Send formatted video notification with robust error handling"""
         
@@ -123,7 +126,7 @@ class TelegramService:
             header = f"📺 New Video from {channel_name}"
             footer = ""
         
-        # Send messages (potentially multiple parts)
+        # Send messages (potentially multiple parts) - Direct MarkdownV2 from LLM
         success = False
         total_parts = len(summary_parts)
         
@@ -136,19 +139,24 @@ class TelegramService:
             else:
                 part_header = header
             
-            # Approach 1: HTML formatting (most reliable according to Telegram docs)
+            # Primary Approach: Convert markdown-style to clean HTML
             try:
-                # Properly escape HTML content according to Telegram Bot API
+                # Convert the LLM's markdown-style output to clean HTML
+                clean_summary = Sanitizer.convert_markdown_to_clean_html(summary_part)
+                
+                # Escape only the header and title
+                escaped_header = Sanitizer.escape_html(part_header)
                 escaped_title = Sanitizer.escape_html(video_title)
-                escaped_summary = Sanitizer.escape_html(summary_part)
                 escaped_footer = Sanitizer.escape_html(footer) if footer else ""
                 
-                html_message = f"<b>{part_header}</b>\n\n"
-                if part_index == 0:  # Only add title to first part
-                    html_message += f"<b>{escaped_title}</b>\n\n"
-                html_message += f"📝 <b>Summary:</b>\n{escaped_summary}\n\n"
-                if part_index == total_parts - 1:  # Only add link to last part
-                    html_message += f"🔗 <a href=\"{video_url}\">Watch Video</a>"
+                html_message = f"🎬 <b>{escaped_header}</b>\n\n"
+                if part_index == 0:
+                    html_message += f"📺 <b>{escaped_title}</b>\n\n"
+                    html_message += f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                html_message += f"{clean_summary}\n\n"
+                if part_index == total_parts - 1:
+                    html_message += f"━━━━━━━━━━━━━━━━━━━━\n"
+                    html_message += f"🔗 <a href=\"{video_url}\">Watch Full Video</a>"
                     if escaped_footer:
                         html_message += f"\n\n{escaped_footer}"
                 
@@ -159,40 +167,26 @@ class TelegramService:
             except Exception as e:
                 logger.warning(f"HTML formatting failed for {channel_name} part {part_index + 1}: {e}")
             
-            # Approach 2: MarkdownV2 (if HTML fails)
+            # Fallback: Plain text (guaranteed to work)
             if not part_success:
                 try:
-                    # Properly escape MarkdownV2 content according to Telegram Bot API
-                    escaped_header = Sanitizer.escape_markdown_v2(part_header)
-                    escaped_title = Sanitizer.escape_markdown_v2(video_title)
-                    escaped_summary = Sanitizer.escape_markdown_v2(summary_part)
-                    escaped_footer = Sanitizer.escape_markdown_v2(footer) if footer else ""
-                    escaped_url = Sanitizer.escape_markdown_v2(video_url)
+                    # Clean the summary for plain text by removing HTML formatting
+                    plain_summary = summary_part
+                    plain_summary = re.sub(r'<b>([^<]+)</b>', r'\1', plain_summary)    # Remove <b>bold</b>
+                    plain_summary = re.sub(r'<i>([^<]+)</i>', r'\1', plain_summary)    # Remove <i>italic</i>
+                    plain_summary = re.sub(r'<code>([^<]+)</code>', r'\1', plain_summary)  # Remove <code>code</code>
+                    plain_summary = re.sub(r'<[^>]+>', '', plain_summary)          # Remove any remaining HTML tags
+                    plain_summary = re.sub(r'&amp;', '&', plain_summary)           # Unescape HTML entities
+                    plain_summary = re.sub(r'&lt;', '<', plain_summary)
+                    plain_summary = re.sub(r'&gt;', '>', plain_summary)
                     
-                    md_message = f"*{escaped_header}*\n\n"
+                    plain_message = f"🎬 {part_header}\n\n"
                     if part_index == 0:
-                        md_message += f"*{escaped_title}*\n\n"
-                    md_message += f"📝 *Summary:*\n{escaped_summary}\n\n"
+                        plain_message += f"📺 {video_title}\n\n"
+                        plain_message += f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                    plain_message += f"{plain_summary}\n\n"
                     if part_index == total_parts - 1:
-                        md_message += f"🔗 [Watch Video]({escaped_url})"
-                        if escaped_footer:
-                            md_message += f"\n\n{escaped_footer}"
-                    
-                    self.send_message(md_message, parse_mode="MarkdownV2")
-                    logger.info(f"Sent MarkdownV2 formatted message part {part_index + 1}/{total_parts} for {channel_name}")
-                    part_success = True
-                    
-                except Exception as e:
-                    logger.warning(f"MarkdownV2 formatting failed for {channel_name} part {part_index + 1}: {e}")
-            
-            # Approach 3: Plain text (guaranteed to work)
-            if not part_success:
-                try:
-                    plain_message = f"{part_header}\n\n"
-                    if part_index == 0:
-                        plain_message += f"{video_title}\n\n"
-                    plain_message += f"📝 Summary:\n{summary_part}\n\n"
-                    if part_index == total_parts - 1:
+                        plain_message += f"━━━━━━━━━━━━━━━━━━━━\n"
                         plain_message += f"🔗 Watch: {video_url}"
                         if footer:
                             plain_message += f"\n\n{footer}"

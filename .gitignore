@@ -144,6 +144,8 @@ Thumbs.db
 *.log
 *.db
 *.db-journal
+yt2telegram/downloads/*.db
+yt2telegram/downloads/UC*/
 downloads/
 cookies.txt
 logs/
