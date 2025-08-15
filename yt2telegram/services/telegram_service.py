@@ -1,19 +1,17 @@
 import os
 import logging
 from typing import List, Dict
-import time
 import requests
 import re
 
 from ..utils.validators import Sanitizer
+from ..utils.retry import network_retry, retry
 
 logger = logging.getLogger(__name__)
 
 class TelegramService:
-    def __init__(self, bot_configs: List[Dict], retry_attempts: int = 3, retry_delay_seconds: int = 5):
+    def __init__(self, bot_configs: List[Dict]):
         self.bots = []
-        self.retry_attempts = retry_attempts
-        self.retry_delay_seconds = retry_delay_seconds
         
         for config in bot_configs:
             bot_name = config.get('name', 'Unnamed Bot')
@@ -60,6 +58,7 @@ class TelegramService:
         for bot in self.bots:
             self._send_to_bot(bot, message, parse_mode)
 
+    @network_retry
     def _send_to_bot(self, bot: Dict, message: str, parse_mode: str = None):
         """Send message to a specific bot with detailed error logging"""
         url = f"https://api.telegram.org/bot{bot['token']}/sendMessage"
@@ -72,37 +71,25 @@ class TelegramService:
         if parse_mode:
             payload['parse_mode'] = parse_mode
         
-        for attempt in range(self.retry_attempts):
+        response = requests.post(url, json=payload, timeout=30)
+        
+        if response.status_code == 200:
+            logger.info(f"Message sent successfully to {bot['name']}")
+            return
+        else:
+            # Log detailed error information
+            error_details = ""
             try:
-                response = requests.post(url, json=payload, timeout=30)
-                
-                if response.status_code == 200:
-                    logger.info(f"Message sent successfully to {bot['name']}")
-                    return
-                else:
-                    # Log detailed error information
-                    error_details = ""
-                    try:
-                        error_json = response.json()
-                        error_details = f"Error: {error_json.get('description', 'Unknown error')}"
-                    except:
-                        error_details = f"HTTP {response.status_code}: {response.text[:200]}"
-                    
-                    logger.warning(f"Attempt {attempt + 1} failed for {bot['name']}: {error_details}")
-                    
-                    # Don't retry on certain errors
-                    if response.status_code == 400:  # Bad Request - likely formatting issue
-                        raise requests.exceptions.RequestException(f"Bad Request: {error_details}")
-                    
-                    response.raise_for_status()
-                
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"Attempt {attempt + 1} failed for {bot['name']}: {e}")
-                if attempt < self.retry_attempts - 1:
-                    time.sleep(self.retry_delay_seconds)
-                else:
-                    logger.error(f"Failed to send message to {bot['name']} after {self.retry_attempts} attempts")
-                    raise  # Re-raise the exception so the caller can handle it
+                error_json = response.json()
+                error_details = f"Error: {error_json.get('description', 'Unknown error')}"
+            except:
+                error_details = f"HTTP {response.status_code}: {response.text[:200]}"
+            
+            # Don't retry on certain errors
+            if response.status_code == 400:  # Bad Request - likely formatting issue
+                raise requests.exceptions.RequestException(f"Bad Request: {error_details}")
+            
+            response.raise_for_status()
 
 
     

@@ -1,4 +1,4 @@
-# YouTube to Telegram Channel Manager
+# YouTube to Telegram
 
 Automatically monitors YouTube channels, generates comprehensive AI-powered summaries that preserve each creator's unique style, and delivers them reliably to Telegram with smart message splitting.
 

@@ -1,18 +1,16 @@
 import logging
 import os
 from typing import Dict
-import time
 from pathlib import Path
 
 import openai
 from openai import OpenAI
+from ..utils.retry import api_retry
 
 logger = logging.getLogger(__name__)
 
 class LLMService:
-    def __init__(self, llm_config: Dict, retry_attempts: int = 3, retry_delay_seconds: int = 5):
-        self.retry_attempts = retry_attempts
-        self.retry_delay_seconds = retry_delay_seconds
+    def __init__(self, llm_config: Dict):
 
         # Get API key
         api_key_env_var = llm_config.get('llm_api_key_env', 'LLM_PROVIDER_API_KEY')
@@ -53,6 +51,7 @@ class LLMService:
 
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
+    @api_retry
     def summarize(self, content: str) -> str:
         """Generate summary of video content"""
         if not content:
@@ -68,34 +67,24 @@ class LLMService:
         prompt = self.prompt_template.format(content=content)
         logger.info(f"Generating summary for content of {len(content)} characters")
 
-        for attempt in range(self.retry_attempts):
-            try:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": "You are an expert content analyst who creates comprehensive, detailed summaries while preserving the original author's voice and style."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    max_tokens=2000,  # Increased back to 2000 - issue was Markdown parsing, not length
-                    temperature=0.7
-                )
-                summary = response.choices[0].message.content.strip()
-                
-                # Log more details about the response
-                logger.info(f"Generated summary length: {len(summary)} characters")
-                logger.info(f"Summary preview: {summary[:200]}...")
-                
-                if not summary:
-                    logger.warning("LLM returned empty summary")
-                    return "Summary generation failed - empty response from LLM"
-                
-                return summary
-                
-            except Exception as e:
-                logger.warning(f"LLM attempt {attempt + 1} failed: {e}")
-                if attempt < self.retry_attempts - 1:
-                    time.sleep(self.retry_delay_seconds)
-                else:
-                    logger.error(f"Failed to generate summary after {self.retry_attempts} attempts")
-                    raise
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": "You are an expert content analyst who creates comprehensive, detailed summaries while preserving the original author's voice and style."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=2000,  # Increased back to 2000 - issue was Markdown parsing, not length
+            temperature=0.7
+        )
+        summary = response.choices[0].message.content.strip()
+        
+        # Log more details about the response
+        logger.info(f"Generated summary length: {len(summary)} characters")
+        logger.info(f"Summary preview: {summary[:200]}...")
+        
+        if not summary:
+            logger.warning("LLM returned empty summary")
+            return "Summary generation failed - empty response from LLM"
+        
+        return summary
 
