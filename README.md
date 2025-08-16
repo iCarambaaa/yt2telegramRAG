@@ -91,7 +91,6 @@ python add_channel_smart.py UCbfYPyITQ-7l4upoX8nvctg
 - 📝 **Generates** personalized prompts that preserve the creator's unique voice
 - ⚙️ **Creates** optimized channel configuration automatically
 - 🌍 **Detects** original language and uses appropriate captions
-- 📅 **Recommends** posting schedule based on content type
 
 ### Manual Channel Configuration
 You can also create YAML files manually in `yt2telegram/channels/`:
@@ -99,7 +98,6 @@ You can also create YAML files manually in `yt2telegram/channels/`:
 ```yaml
 name: "Your Channel"
 channel_id: "UCxxxxxxxxxxxxxxxxxx"
-schedule: "daily"  # daily, weekly, monthly
 db_path: "yt2telegram/downloads/your_channel.db"
 cookies_file: "COOKIES_FILE"
 max_videos_to_fetch: 3
@@ -185,7 +183,7 @@ The `COOKIES_FILE` is essential for accessing age-restricted or private YouTube 
 
 ### 🌍 **Multi-Channel & Multi-Language**
 - **Unlimited channels** - Monitor any number of YouTube channels simultaneously
-- **Individual configurations** - Separate schedules, prompts, and databases per channel
+- **Individual configurations** - Separate prompts and databases per channel
 - **Language flexibility** - Automatic original language caption detection and processing
 - **Isolated pipelines** - Each channel processes independently for reliability
 

@@ -6,7 +6,8 @@ Sequential processing for better reliability and easier debugging
 
 import os
 import logging
-from datetime import datetime, timedelta
+import time
+from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -23,27 +24,7 @@ from .config_finder import find_channel_configs
 # Setup logging
 logger = setup_logging()
 
-def is_due_for_processing(last_check_str: str, schedule_type: str) -> bool:
-    """Check if channel is due for processing based on schedule"""
-    if not last_check_str:
-        return True  # Never processed before
 
-    try:
-        last_check = datetime.fromisoformat(last_check_str)
-    except (ValueError, TypeError):
-        return True  # If we can't parse the date, process anyway
-        
-    now = datetime.now()
-
-    if schedule_type == "daily":
-        return (now - last_check) >= timedelta(days=1)
-    elif schedule_type == "weekly":
-        return (now - last_check) >= timedelta(weeks=1)
-    elif schedule_type == "monthly":
-        return (now - last_check) >= timedelta(days=30)
-    else:
-        logger.warning(f"Unknown schedule type: {schedule_type}")
-        return False
 
 def process_channel(config: ChannelConfig) -> bool:
     """Process a single channel - sequential, simple, reliable"""
@@ -69,11 +50,7 @@ def process_channel(config: ChannelConfig) -> bool:
         )
         subtitle_cleaner = SubtitleCleaner()
 
-        # Check if processing is due
-        last_check = db_service.get_last_check(config.channel_id)
-        if not is_due_for_processing(last_check, config.schedule):
-            logger.info(f"Channel {config.name} not due for processing yet")
-            return True
+
 
         # Get latest videos
         logger.info(f"Fetching latest {config.max_videos_to_fetch} videos")
@@ -184,14 +161,20 @@ def main():
 
     logger.info(f"Found {len(config_files)} channel configuration files")
     
-    # Process each channel
+    # Process each channel with 5-second sleep between them
     results = []
-    for config_file in config_files:
+    for i, config_file in enumerate(config_files):
         try:
             logger.info(f"Loading configuration from {config_file}")
             config = ChannelConfig.from_yaml(config_file)
             success = process_channel(config)
             results.append((config_file, success))
+            
+            # Sleep 5 seconds between channels (except after the last one)
+            if i < len(config_files) - 1:
+                logger.info("Waiting 5 seconds before processing next channel...")
+                time.sleep(5)
+                
         except Exception as e:
             logger.error(f"Error processing config file {config_file}: {e}", exc_info=True)
             results.append((config_file, False))

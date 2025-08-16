@@ -7,7 +7,6 @@ class ChannelConfig:
     name: str
     channel_id: str
     db_path: str
-    schedule: str
     max_videos_to_fetch: int = 5
     cookies_file: Optional[str] = None
     subtitle_preferences: List[str] = None
@@ -34,7 +33,6 @@ class ChannelConfig:
             name=data['name'],
             channel_id=data['channel_id'],
             db_path=data['db_path'],
-            schedule=data['schedule'],
             max_videos_to_fetch=data.get('max_videos_to_fetch', 5),
             cookies_file=data.get('cookies_file'),
             subtitle_preferences=cls._extract_subtitle_languages(data.get('subtitles', [])),

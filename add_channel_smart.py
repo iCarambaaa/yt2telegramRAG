@@ -288,14 +288,9 @@ def create_channel_config(channel_info: Dict, analysis: Dict) -> Dict:
     # Create clean safe name: replace spaces/special chars with single underscore, remove consecutive underscores
     safe_name = re.sub(r'[^a-zA-Z0-9]+', '_', name.lower()).strip('_')
     
-    # Determine schedule based on content themes
-    themes = analysis.get('content_themes', [])
-    schedule = 'daily' if any(theme in ['news', 'geopolitics', 'breaking', 'current events'] for theme in themes) else 'weekly'
-    
     return {
         'name': name,
         'channel_id': channel_info['id'],
-        'schedule': schedule,
         'db_path': f"yt2telegram/downloads/{safe_name}.db",
         'cookies_file': "COOKIES_FILE",
         'max_videos_to_fetch': 3,
@@ -376,7 +371,6 @@ def main():
     print(f"📝 Personalized prompt: {prompt_path}")
     print(f"📧 Added {env_var} to .env")
     print(f"\n🎯 Detected: {analysis.get('content_themes', ['general'])[0]} channel")
-    print(f"📅 Recommended schedule: {config['schedule']}")
     print(f"🎨 Style: {analysis.get('unique_style', 'Professional')[:60]}...")
     
     print(f"\n🚀 Next steps:")

@@ -3,7 +3,6 @@
 # General Channel Information
 name: "Example Channel"
 channel_id: "UCsXVk37bltHxD1rDPwtNM8Q" # Replace with the actual YouTube Channel ID
-schedule: "daily" # How often to check for new videos: "daily", "weekly", "monthly"
 db_path: "yt2telegram/downloads/example_channel.db" # Path to this channel's dedicated SQLite DB
 cookies_file: null # Optional: Path to a cookies.txt file for private videos/channels
 max_videos_to_fetch: 5 # Number of latest videos to fetch from the channel's feed
