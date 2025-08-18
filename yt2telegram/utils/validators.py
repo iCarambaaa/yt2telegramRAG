@@ -178,7 +178,7 @@ class Sanitizer:
                     split_pos = pos + (1 if split_type == 'sentence' else 0)
                     break
             
-            # Calculate total parts estimate
+            # Calculate total parts estimate (will be corrected later)
             total_parts = max(2, (len(text) // max_length) + 1)
             
             # Add this part
@@ -193,7 +193,10 @@ class Sanitizer:
         actual_total = len(messages)
         if actual_total > 1:
             for i in range(len(messages)):
-                messages[i] = messages[i].replace(f"Part {i+1}/{actual_total}", f"Part {i+1}/{actual_total}", 1)
+                # Replace the estimated total with the actual total
+                old_pattern = re.search(r'📄 Part (\d+)/(\d+)', messages[i])
+                if old_pattern:
+                    messages[i] = re.sub(r'📄 Part (\d+)/(\d+)', f'📄 Part {i+1}/{actual_total}', messages[i], 1)
         
         return messages
     

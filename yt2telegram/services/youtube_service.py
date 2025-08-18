@@ -1,6 +1,7 @@
 import yt_dlp
 import logging
 import os
+import time
 from typing import List
 from pathlib import Path
 
@@ -10,8 +11,10 @@ from ..utils.retry import api_retry
 logger = logging.getLogger(__name__)
 
 class YouTubeService:
-    def __init__(self, cookies_file: str = None):
+    def __init__(self, cookies_file: str = None, retry_attempts: int = 3, retry_delay_seconds: int = 5):
         self.cookies_file = cookies_file
+        self.retry_attempts = retry_attempts
+        self.retry_delay_seconds = retry_delay_seconds
 
     @api_retry
     def get_latest_videos(self, channel_id: str, max_results: int = 5) -> List[Video]:

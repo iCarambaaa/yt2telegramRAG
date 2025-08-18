@@ -38,16 +38,8 @@ def process_channel(config: ChannelConfig) -> bool:
             retry_attempts=config.retry_attempts,
             retry_delay_seconds=config.retry_delay_seconds
         )
-        telegram_service = TelegramService(
-            bot_configs=config.telegram_bots_config,
-            retry_attempts=config.retry_attempts,
-            retry_delay_seconds=config.retry_delay_seconds
-        )
-        llm_service = LLMService(
-            llm_config=config.llm_config,
-            retry_attempts=config.retry_attempts,
-            retry_delay_seconds=config.retry_delay_seconds
-        )
+        telegram_service = TelegramService(bot_configs=config.telegram_bots_config)
+        llm_service = LLMService(llm_config=config.llm_config)
         subtitle_cleaner = SubtitleCleaner()
 
 
