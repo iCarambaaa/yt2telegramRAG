@@ -1,12 +1,12 @@
 import sqlite3
 from pathlib import Path
-import logging
 from typing import Optional, List
 from datetime import datetime
 
 from ..models.video import Video
+from ..utils.logging_config import LoggerFactory
 
-logger = logging.getLogger(__name__)
+logger = LoggerFactory.create_logger(__name__)
 
 class DatabaseService:
     def __init__(self, db_path: str):
@@ -74,7 +74,7 @@ class DatabaseService:
                 video.cleaned_subtitles,
                 video.summary
             ))
-        logger.info(f"Added video {video.id} to database")
+        logger.info("Added video to database", video_id=video.id)
 
     def get_last_check(self, channel_id: str) -> Optional[str]:
         """Get last check timestamp for channel"""
@@ -93,7 +93,7 @@ class DatabaseService:
                 INSERT OR REPLACE INTO channel_status (channel_id, last_check)
                 VALUES (?, ?)
             ''', (channel_id, timestamp))
-        logger.info(f"Updated last check for channel {channel_id}")
+        logger.info("Updated last check for channel", channel_id=channel_id)
 
     def get_recent_videos(self, channel_id: str, limit: int = 10) -> List[Video]:
         """Get recent videos for a channel"""

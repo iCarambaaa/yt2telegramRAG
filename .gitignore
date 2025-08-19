@@ -135,6 +135,7 @@ dmypy.json
 *.swo
 .voidrules
 .kiro/
+CRUSH.md
 
 # OS
 .DS_Store

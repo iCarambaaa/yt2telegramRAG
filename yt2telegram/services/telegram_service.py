@@ -1,5 +1,4 @@
 import os
-import logging
 import time
 from typing import List, Dict
 import requests
@@ -7,8 +6,9 @@ import re
 
 from ..utils.validators import Sanitizer
 from ..utils.retry import network_retry, retry
+from ..utils.logging_config import LoggerFactory
 
-logger = logging.getLogger(__name__)
+logger = LoggerFactory.create_logger(__name__)
 
 class TelegramService:
     def __init__(self, bot_configs: List[Dict]):
@@ -20,12 +20,12 @@ class TelegramService:
             # Get token from environment
             token_env_var = config.get('token_env')
             if not token_env_var:
-                logger.warning(f"Skipping {bot_name}: Missing 'token_env' in config")
+                logger.warning("Skipping bot: Missing 'token_env' in config", bot_name=bot_name)
                 continue
                 
             token = os.getenv(token_env_var)
             if not token:
-                logger.error(f"Token for {bot_name} not found in environment: {token_env_var}")
+                logger.error("Token not found in environment", bot_name=bot_name, token_env_var=token_env_var)
                 continue
             
             # Get chat ID
@@ -39,7 +39,7 @@ class TelegramService:
                 chat_id = str(chat_id_direct)
             
             if not chat_id:
-                logger.error(f"Chat ID for {bot_name} not found")
+                logger.error("Chat ID not found", bot_name=bot_name)
                 continue
             
             self.bots.append({
@@ -48,7 +48,7 @@ class TelegramService:
                 'chat_id': chat_id
             })
         
-        logger.info(f"Initialized {len(self.bots)} Telegram bots")
+        logger.info("Initialized Telegram bots", count=len(self.bots))
 
     def send_message(self, message: str, parse_mode: str = None):
         """Send message to all configured bots"""
@@ -75,7 +75,7 @@ class TelegramService:
         response = requests.post(url, json=payload, timeout=30)
         
         if response.status_code == 200:
-            logger.info(f"Message sent successfully to {bot['name']}")
+            logger.info("Message sent successfully", bot_name=bot['name'])
             return
         else:
             # Log detailed error information
@@ -149,11 +149,11 @@ class TelegramService:
                         html_message += f"\n\n{escaped_footer}"
                 
                 self.send_message(html_message, parse_mode="HTML")
-                logger.info(f"Sent HTML formatted message part {part_index + 1}/{total_parts} for {channel_name}")
+                logger.info("Sent HTML formatted message part", part=part_index + 1, total_parts=total_parts, channel_name=channel_name)
                 part_success = True
                 
             except Exception as e:
-                logger.warning(f"HTML formatting failed for {channel_name} part {part_index + 1}: {e}")
+                logger.warning("HTML formatting failed", channel_name=channel_name, part=part_index + 1, error=str(e))
             
             # Fallback: Plain text (guaranteed to work)
             if not part_success:
@@ -180,16 +180,16 @@ class TelegramService:
                             plain_message += f"\n\n{footer}"
                     
                     self.send_message(plain_message, parse_mode=None)
-                    logger.info(f"Sent plain text message part {part_index + 1}/{total_parts} for {channel_name}")
+                    logger.info("Sent plain text message part", part=part_index + 1, total_parts=total_parts, channel_name=channel_name)
                     part_success = True
                     
                 except Exception as e:
-                    logger.error(f"Even plain text failed for {channel_name} part {part_index + 1}: {e}")
+                    logger.error("Even plain text failed", channel_name=channel_name, part=part_index + 1, error=str(e))
             
             if part_success:
                 success = True
             else:
-                logger.error(f"Failed to send part {part_index + 1}/{total_parts} for {channel_name}")
+                logger.error("Failed to send part", part=part_index + 1, total_parts=total_parts, channel_name=channel_name)
                 break  # Stop sending remaining parts if one fails
             
             # Small delay between parts to avoid rate limiting
@@ -197,6 +197,6 @@ class TelegramService:
                 time.sleep(1)
         
         if success:
-            logger.info(f"Successfully sent notification for {channel_name}")
+            logger.info("Successfully sent notification", channel_name=channel_name)
         else:
-            logger.error(f"All formatting attempts failed for {channel_name}")
+            logger.error("All formatting attempts failed", channel_name=channel_name)

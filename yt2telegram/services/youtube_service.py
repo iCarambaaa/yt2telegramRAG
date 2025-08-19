@@ -1,5 +1,4 @@
 import yt_dlp
-import logging
 import os
 import time
 from typing import List
@@ -7,8 +6,9 @@ from pathlib import Path
 
 from ..models.video import Video
 from ..utils.retry import api_retry
+from ..utils.logging_config import LoggerFactory
 
-logger = logging.getLogger(__name__)
+logger = LoggerFactory.create_logger(__name__)
 
 class YouTubeService:
     def __init__(self, cookies_file: str = None, retry_attempts: int = 3, retry_delay_seconds: int = 5):
@@ -19,7 +19,7 @@ class YouTubeService:
     @api_retry
     def get_latest_videos(self, channel_id: str, max_results: int = 5) -> List[Video]:
         """Fetch latest videos from YouTube channel"""
-        logger.info(f"Fetching latest {max_results} videos for channel: {channel_id}")
+        logger.info("Fetching latest videos", max_results=max_results, channel_id=channel_id)
         
         ydl_opts = {
             "extract_flat": True,
@@ -54,12 +54,12 @@ class YouTubeService:
                     video = Video.from_yt_dlp(entry, channel_id)
                     videos.append(video)
         
-        logger.info(f"Successfully fetched {len(videos)} videos")
+        logger.info("Successfully fetched videos", count=len(videos))
         return videos
 
     def download_subtitles(self, video_id: str, subtitle_preferences: List[str], output_dir: str) -> str:
         """Download subtitles for a video with smart priority logic"""
-        logger.info(f"Downloading subtitles for video: {video_id}")
+        logger.info("Downloading subtitles for video", video_id=video_id)
         
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
@@ -92,9 +92,9 @@ class YouTubeService:
             with yt_dlp.YoutubeDL(info_opts) as ydl:
                 info = ydl.extract_info(video_url, download=False)
                 original_language = info.get('language') or info.get('original_language') or "en"
-                logger.info(f"Detected original language: {original_language}")
+                logger.info("Detected original language", language=original_language)
         except Exception as e:
-            logger.warning(f"Could not detect original language, using 'en': {e}")
+            logger.warning("Could not detect original language, using 'en'", error=str(e))
         
         # Build smart priority list: original language manual -> original language auto -> preferences
         priority_languages = []
@@ -112,13 +112,13 @@ class YouTubeService:
             if pref not in priority_languages:
                 priority_languages.append(pref)
         
-        logger.info(f"Subtitle priority order: {priority_languages}")
+        logger.info("Subtitle priority order", priority_languages=priority_languages)
         
         # Try each language in priority order until we find one
         for attempt in range(self.retry_attempts):
             try:
                 for lang in priority_languages:
-                    logger.info(f"Trying to download subtitles in language: {lang}")
+                    logger.info("Trying to download subtitles", language=lang)
                     
                     # Download only this specific language
                     ydl_opts = {
@@ -147,23 +147,23 @@ class YouTubeService:
                         # Check if subtitle was downloaded
                         subtitle_file = output_path / f"{video_id}.{lang}.vtt"
                         if subtitle_file.exists():
-                            logger.info(f"Successfully downloaded subtitles: {subtitle_file} (language: {lang})")
+                            logger.info("Successfully downloaded subtitles", file_path=str(subtitle_file), language=lang)
                             return str(subtitle_file)
                         else:
-                            logger.debug(f"No subtitles available for language: {lang}")
+                            logger.debug("No subtitles available for language", language=lang)
                             
                     except Exception as lang_error:
-                        logger.debug(f"Failed to download {lang} subtitles: {lang_error}")
+                        logger.debug("Failed to download subtitles", language=lang, error=str(lang_error))
                         continue  # Try next language
                 
                 # If we get here, no languages worked
-                logger.warning(f"No subtitles found for video {video_id} in any priority language")
+                logger.warning("No subtitles found in any priority language", video_id=video_id)
                 return None
                 
             except Exception as e:
-                logger.warning(f"Subtitle download attempt {attempt + 1} failed: {e}")
+                logger.warning("Subtitle download attempt failed", attempt=attempt + 1, error=str(e))
                 if attempt < self.retry_attempts - 1:
                     time.sleep(self.retry_delay_seconds)
                 else:
-                    logger.error(f"Failed to download subtitles after {self.retry_attempts} attempts")
+                    logger.error("Failed to download subtitles after all attempts", retry_attempts=self.retry_attempts)
                     return None

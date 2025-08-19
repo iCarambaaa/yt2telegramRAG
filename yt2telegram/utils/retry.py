@@ -1,9 +1,10 @@
 import time
-import logging
 from functools import wraps
 from typing import Callable, Type, Union, Tuple
 
-logger = logging.getLogger(__name__)
+from .logging_config import LoggerFactory
+
+logger = LoggerFactory.create_logger(__name__)
 
 def retry(
     attempts: int = 3,
@@ -32,7 +33,7 @@ def retry(
         @wraps(func)
         def wrapper(*args, **kwargs):
             # Use custom logger or function's module logger
-            func_logger = logging.getLogger(logger_name or func.__module__)
+            func_logger = LoggerFactory.create_logger(logger_name or func.__module__)
             
             current_delay = delay
             last_exception = None
@@ -43,7 +44,7 @@ def retry(
                     
                     # Log success if this wasn't the first attempt
                     if attempt > 0:
-                        func_logger.info(f"{func.__name__} succeeded on attempt {attempt + 1}")
+                        func_logger.info("Function succeeded on retry", function=func.__name__, attempt=attempt + 1)
                     
                     return result
                     
@@ -54,16 +55,22 @@ def retry(
                     if attempt_num < attempts:
                         # Not the last attempt - log warning and retry
                         func_logger.warning(
-                            f"{func.__name__} attempt {attempt_num}/{attempts} failed: {e}. "
-                            f"Retrying in {current_delay:.1f}s..."
+                            "Function attempt failed, retrying", 
+                            function=func.__name__, 
+                            attempt=attempt_num, 
+                            total_attempts=attempts, 
+                            error=str(e), 
+                            retry_delay=current_delay
                         )
                         time.sleep(current_delay)
                         current_delay *= backoff
                     else:
                         # Last attempt failed - log error and re-raise
                         func_logger.error(
-                            f"{func.__name__} failed after {attempts} attempts. "
-                            f"Final error: {e}"
+                            "Function failed after all attempts", 
+                            function=func.__name__, 
+                            total_attempts=attempts, 
+                            final_error=str(e)
                         )
                         raise
             

@@ -1,9 +1,10 @@
 import re
 from pathlib import Path
-import logging
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+from .logging_config import LoggerFactory
+
+logger = LoggerFactory.create_logger(__name__)
 
 class SubtitleCleaner:
     def __init__(self):
@@ -119,9 +120,9 @@ class SubtitleCleaner:
             
             # Basic VTT cleaning is sufficient
             cleaned_text = self.clean_vtt_subtitles(raw_subtitles)
-            logger.info(f"Cleaned subtitles: {len(raw_subtitles)} -> {len(cleaned_text)} characters")
+            logger.info("Cleaned subtitles", original_length=len(raw_subtitles), cleaned_length=len(cleaned_text))
             return cleaned_text
             
         except Exception as e:
-            logger.error(f"Error processing subtitle file {file_path}: {e}")
+            logger.error("Error processing subtitle file", file_path=file_path, error=str(e))
             return ""

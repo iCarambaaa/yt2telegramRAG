@@ -338,6 +338,29 @@ export LOG_LEVEL=DEBUG
 python run.py
 ```
 
+### Structured Logging
+The system now features enhanced structured logging with semantic color coding:
+
+- **Channel names**: Red (easy identification)
+- **Video titles**: Green (content highlighting)  
+- **Success counts**: Green (positive metrics)
+- **Failed counts**: Red (negative metrics)
+- **Errors**: Bright red (problem indication)
+- **General counts**: Yellow (neutral metrics)
+
+Example log output:
+```
+[02:15:30] INFO Processing channel [channel_name=Two Minute Papers, video_count=5]
+[02:15:31] INFO Processing video [video_title=Amazing AI Research, video_id=abc123]
+[02:15:35] INFO Processing complete [successful_count=4, failed_count=1]
+```
+
+The structured logging makes it easy to visually scan logs and quickly identify:
+- Which channels are being processed
+- Video processing status
+- Success/failure metrics
+- Any errors or issues
+
 ---
 
 ## Contributing

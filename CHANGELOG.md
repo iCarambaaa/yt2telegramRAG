@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.2.0] - 2025-08-19
+
+### 🎨 **Enhanced Structured Logging System**
+- **Rich-based logging**: Replaced standard Python logging with Rich for beautiful terminal output
+- **Semantic color coding**: Intuitive colors for different data types
+  - Channel names: Red (easy identification)
+  - Video titles: Green (content highlighting)
+  - Success counts: Green (positive metrics)
+  - Failed counts: Red (negative metrics)
+  - Errors: Bright red (problem indication)
+  - General counts: Yellow (neutral metrics)
+- **LoggerFactory pattern**: Centralized logger creation and configuration
+- **Structured data support**: Key-value logging with `logger.info("message", key=value)`
+- **Comma handling**: Proper color highlighting for values containing commas
+- **Backward compatibility**: Maintains existing log level configuration
+
+### 🔧 **Technical Improvements**
+- **Regex-based highlighting**: Custom Rich highlighter for consistent color application
+- **Pattern matching**: Smart regex patterns that handle complex values with spaces and commas
+- **Fallback support**: Graceful degradation to standard logging if Rich is unavailable
+- **Context support**: Logger context with `logger.with_context(session_id="abc")`
+
+### 📚 **Documentation Updates**
+- **README.md**: Added structured logging section with examples
+- **Tech steering**: Updated architecture notes to reflect new logging system
+- **Dependencies**: Added Rich to core dependencies list
+
 ## [2.1.0] - 2025-08-14
 
 ### 🎯 **Formatting System Overhaul**

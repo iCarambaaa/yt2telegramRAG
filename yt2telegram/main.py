@@ -5,13 +5,12 @@ Sequential processing for better reliability and easier debugging
 """
 
 import os
-import logging
 import time
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 
-from .utils.logging_config import setup_logging
+from .utils.logging_config import setup_logging, LoggerFactory
 from .models.channel import ChannelConfig
 from .models.video import Video
 from .services.youtube_service import YouTubeService
@@ -22,14 +21,15 @@ from .utils.subtitle_cleaner import SubtitleCleaner
 from .config_finder import find_channel_configs
 
 # Setup logging
-logger = setup_logging()
+setup_logging()
+logger = LoggerFactory.create_logger(__name__)
 
 
 
 def process_channel(config: ChannelConfig) -> bool:
     """Process a single channel - sequential, simple, reliable"""
     try:
-        logger.info(f"Processing channel: {config.name} (ID: {config.channel_id})")
+        logger.info("Processing channel", channel_name=config.name, channel_id=config.channel_id)
 
         # Initialize services
         db_service = DatabaseService(config.db_path)
@@ -45,7 +45,7 @@ def process_channel(config: ChannelConfig) -> bool:
 
 
         # Get latest videos
-        logger.info(f"Fetching latest {config.max_videos_to_fetch} videos")
+        logger.info("Fetching latest videos", max_videos=config.max_videos_to_fetch)
         videos = youtube_service.get_latest_videos(
             config.channel_id, 
             config.max_videos_to_fetch
@@ -53,11 +53,11 @@ def process_channel(config: ChannelConfig) -> bool:
 
         processed_count = 0
         for video in videos:
-            logger.info(f"Processing video: {video.title}")
+            logger.info("Processing video", video_id=video.id, video_title=video.title)
 
             # Skip if already processed
             if db_service.is_video_processed(video.id):
-                logger.info(f"Video {video.id} already processed, skipping")
+                logger.info("Video already processed, skipping", video_id=video.id)
                 continue
 
             # No need to handle published_at - we use processed_at from database
@@ -86,9 +86,9 @@ def process_channel(config: ChannelConfig) -> bool:
                 try:
                     os.remove(raw_subtitle_path)
                 except Exception as e:
-                    logger.warning(f"Could not remove raw subtitle file: {e}")
+                    logger.warning("Could not remove raw subtitle file", error=str(e), file_path=raw_subtitle_path)
             else:
-                logger.warning(f"No subtitles downloaded for video {video.id}")
+                logger.warning("No subtitles downloaded for video", video_id=video.id)
 
             # Generate summary
             summary = ""
@@ -96,7 +96,7 @@ def process_channel(config: ChannelConfig) -> bool:
                 try:
                     summary = llm_service.summarize(cleaned_subtitles)
                 except Exception as e:
-                    logger.error(f"Failed to generate summary: {e}")
+                    logger.error("Failed to generate summary", error=str(e), video_id=video.id)
                     summary = "Summary generation failed"
 
             # Update video with processed data
@@ -125,19 +125,19 @@ def process_channel(config: ChannelConfig) -> bool:
                         channel_type
                     )
                 except Exception as e:
-                    logger.error(f"Failed to send Telegram notification: {e}")
+                    logger.error("Failed to send Telegram notification", error=str(e), video_id=video.id)
 
             processed_count += 1
-            logger.info(f"Successfully processed video: {video.title}")
+            logger.info("Successfully processed video", video_id=video.id, video_title=video.title)
 
         # Update last check timestamp
         db_service.update_last_check(config.channel_id, datetime.now().isoformat())
         
-        logger.info(f"Finished processing channel: {config.name} ({processed_count} new videos)")
+        logger.info("Finished processing channel", channel_name=config.name, processed_count=processed_count)
         return True
 
     except Exception as e:
-        logger.error(f"Error processing channel {config.name}: {e}", exc_info=True)
+        logger.error("Error processing channel", channel_name=config.name, error=str(e))
         return False
 
 def main():
@@ -151,13 +151,13 @@ def main():
         logger.warning("No channel configuration files found")
         return
 
-    logger.info(f"Found {len(config_files)} channel configuration files")
+    logger.info("Found channel configuration files", count=len(config_files))
     
     # Process each channel with 5-second sleep between them
     results = []
     for i, config_file in enumerate(config_files):
         try:
-            logger.info(f"Loading configuration from {config_file}")
+            logger.info("Loading configuration", config_file=config_file)
             config = ChannelConfig.from_yaml(config_file)
             success = process_channel(config)
             results.append((config_file, success))
@@ -168,19 +168,19 @@ def main():
                 time.sleep(5)
                 
         except Exception as e:
-            logger.error(f"Error processing config file {config_file}: {e}", exc_info=True)
+            logger.error("Error processing config file", config_file=config_file, error=str(e))
             results.append((config_file, False))
 
     # Log summary
     successful = [cfg for cfg, success in results if success]
     failed = [cfg for cfg, success in results if not success]
     
-    logger.info(f"Processing complete. Successful: {len(successful)}, Failed: {len(failed)}")
+    logger.info("Processing complete", successful_count=len(successful), failed_count=len(failed))
     
     if failed:
-        logger.error(f"Failed channels: {failed}")
+        logger.error("Failed channels", failed_channels=failed)
     if successful:
-        logger.info(f"Successful channels: {successful}")
+        logger.info("Successful channels", successful_channels=successful)
 
 if __name__ == "__main__":
     main()

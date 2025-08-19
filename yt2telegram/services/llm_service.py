@@ -1,4 +1,3 @@
-import logging
 import os
 from typing import Dict
 from pathlib import Path
@@ -6,8 +5,9 @@ from pathlib import Path
 import openai
 from openai import OpenAI
 from ..utils.retry import api_retry
+from ..utils.logging_config import LoggerFactory
 
-logger = logging.getLogger(__name__)
+logger = LoggerFactory.create_logger(__name__)
 
 class LLMService:
     def __init__(self, llm_config: Dict):
@@ -61,11 +61,11 @@ class LLMService:
         # Truncate content if too long (keep within reasonable token limits)
         max_content_chars = 50000  # Roughly 12-15k tokens
         if len(content) > max_content_chars:
-            logger.info(f"Content too long ({len(content)} chars), truncating to {max_content_chars}")
+            logger.info("Content too long, truncating", content_length=len(content), max_chars=max_content_chars)
             content = content[:max_content_chars] + "...\n\n[Content truncated due to length]"
 
         prompt = self.prompt_template.format(content=content)
-        logger.info(f"Generating summary for content of {len(content)} characters")
+        logger.info("Generating summary", content_length=len(content))
 
         response = self.client.chat.completions.create(
             model=self.model,
@@ -79,8 +79,7 @@ class LLMService:
         summary = response.choices[0].message.content.strip()
         
         # Log more details about the response
-        logger.info(f"Generated summary length: {len(summary)} characters")
-        logger.info(f"Summary preview: {summary[:200]}...")
+        logger.info("Generated summary", summary_length=len(summary), preview=summary[:200])
         
         if not summary:
             logger.warning("LLM returned empty summary")

@@ -1,17 +1,14 @@
 """Main Q&A Telegram bot with message receiving."""
 import asyncio
-import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from .config import QnAConfig
 from .handler import QnAHandler
+from ..utils.logging_config import setup_logging, LoggerFactory
 
 # Configure logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+setup_logging()
+logger = LoggerFactory.create_logger(__name__)
 
 class QnABot:
     """Q&A Telegram bot with message receiving."""
@@ -87,7 +84,7 @@ Simply send me your question and I'll search through all video summaries and sub
             await update.message.reply_text(response, parse_mode='Markdown')
             
         except Exception as e:
-            logger.error(f"Error getting latest videos: {e}")
+            logger.error("Error getting latest videos", error=str(e))
             await update.message.reply_text("Sorry, I encountered an error retrieving the latest videos.")
     
     async def help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -133,7 +130,7 @@ The bot searches through all video summaries and subtitles to find relevant info
             await update.message.reply_text(response, parse_mode='Markdown')
             
         except Exception as e:
-            logger.error(f"Error processing question: {e}")
+            logger.error("Error processing question", error=str(e))
             await update.message.reply_text(
                 "Sorry, I encountered an error processing your question. Please try again."
             )
@@ -154,16 +151,14 @@ The bot searches through all video summaries and subtitles to find relevant info
             await update.message.reply_text(response, parse_mode='Markdown')
             
         except Exception as e:
-            logger.error(f"Error processing search: {e}")
+            logger.error("Error processing search", error=str(e))
             await update.message.reply_text(
                 "Sorry, I encountered an error processing your search. Please try again."
             )
     
     def run(self):
         """Start the bot."""
-        logger.info(f"Starting Q&A bot for {self.config.channel_name}")
-        logger.info(f"Database: {self.config.database_path}")
-        logger.info(f"Chat ID: {self.config.chat_id}")
+        logger.info("Starting Q&A bot", channel_name=self.config.channel_name, database_path=self.config.database_path, chat_id=self.config.chat_id)
         
         self.application.run_polling()
 
@@ -181,7 +176,7 @@ def main():
         bot = QnABot(config_file)
         bot.run()
     except Exception as e:
-        logger.error(f"Failed to start bot: {e}")
+        logger.error("Failed to start bot", error=str(e))
         sys.exit(1)
 
 if __name__ == "__main__":
