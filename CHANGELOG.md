@@ -1,5 +1,36 @@
 # Changelog
 
+## [3.0.0] - 2025-08-25
+
+### 🤖 **Multi-Model Summarization System**
+- **Dual-model approach**: Generate two independent summaries using different LLM models
+- **Intelligent synthesis**: Third model analyzes both summaries and original transcript to create optimal final summary
+- **Flexible model configuration**: Mix different model types (GPT, Claude, etc.) for optimal results
+- **Fallback strategies**: Graceful degradation with configurable fallback options (best_summary, primary_summary, single_model)
+- **Cost optimization**: Smart model selection balancing quality and efficiency
+- **Token tracking**: Comprehensive monitoring of token usage across all three model calls
+- **Backward compatibility**: Existing channels continue using single-model unless explicitly configured
+
+### 🎯 **Enhanced QnA System with RAG**
+- **Channel-specific conversations**: Chat with individual channel databases without cross-contamination
+- **Video tagging**: Tag specific videos in Telegram for targeted questioning with full context
+- **Persistent chat context**: Maintains conversation history for meaningful ongoing discussions
+- **Smart retrieval**: RAG searches through video titles, descriptions, and cleaned subtitles
+- **Context window management**: Intelligent handling of long conversations
+- **Citation support**: Answers cite which videos information came from
+
+### 🏗️ **Architecture Improvements**
+- **Service-oriented design**: New MultiModelLLMService extends existing LLMService
+- **Template system**: Dedicated synthesis templates with creator context extraction
+- **Model configuration**: Structured ModelConfig and TokenUsage tracking
+- **Error handling**: Comprehensive fallback mechanisms and error recovery
+
+### 📚 **Documentation Updates**
+- **README.md**: Added multi-model and QnA system documentation
+- **Configuration examples**: Complete YAML examples for new features
+- **Migration guide**: Clear instructions for adopting new features
+- **Architecture notes**: Updated technical documentation
+
 ## [2.2.0] - 2025-08-19
 
 ### 🎨 **Enhanced Structured Logging System**

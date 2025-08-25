@@ -3,10 +3,12 @@
 Automatically monitors YouTube channels, generates comprehensive AI-powered summaries that preserve each creator's unique style, and delivers them reliably to Telegram with smart message splitting.
 
 **Key Features:**
+- ✅ **Multi-Model Summarization** - Enhanced quality through dual-model approach with synthesis
+- ✅ **Enhanced QnA System** - Channel-specific RAG conversations with video tagging
 - ✅ **Smart Channel Setup** - Automated channel analysis and configuration
 - ✅ **Style-Preserving Summaries** - Maintains each creator's unique voice and perspective  
 - ✅ **Smart Message Splitting** - Preserves all content across multiple messages when needed
-- ✅ **Robust Error Handling** - HTML escaping, Markdown parsing fixes, and fallback mechanisms
+- ✅ **Rich Structured Logging** - Beautiful terminal output with semantic color coding
 - ✅ **Optimized Processing** - Advanced subtitle cleaning with 88-89% size reduction
 - ✅ **Multi-Language Support** - Perfect support for English, German, Russian, and more
 - ✅ **Production Ready** - Comprehensive logging, retry logic, and graceful failure recovery
@@ -108,6 +110,23 @@ llm_config:
   llm_base_url: "https://openrouter.ai/api/v1"
   llm_prompt_template_path: "yt2telegram/prompts/your_prompt.md"
 
+# Optional: Multi-model configuration for enhanced summaries
+multi_model_config:
+  enabled: true
+  primary_model:
+    model_name: "gpt-4o-mini"
+    api_key_env: "LLM_PROVIDER_API_KEY"
+    base_url_env: "BASE_URL"
+  secondary_model:
+    model_name: "claude-3-haiku"
+    api_key_env: "ANTHROPIC_API_KEY"
+    base_url_env: "ANTHROPIC_BASE_URL"
+  synthesis_model:
+    model_name: "gpt-4o"
+    api_key_env: "LLM_PROVIDER_API_KEY"
+    base_url_env: "BASE_URL"
+  fallback_strategy: "best_summary"
+
 telegram_bots:
   - name: "Your Bot"
     token_env: "TELEGRAM_BOT_TOKEN"
@@ -149,8 +168,11 @@ The `COOKIES_FILE` is essential for accessing age-restricted or private YouTube 
 
 ## Key Features
 
-### 🧠 **Advanced AI Summaries**
-- **Comprehensive extraction** - 2000 tokens for detailed, complete summaries
+### 🧠 **Multi-Model AI Summaries**
+- **Dual-model approach** - Two independent summaries for enhanced quality and coverage
+- **Intelligent synthesis** - Third model combines best aspects of both summaries
+- **Fallback protection** - Graceful degradation to single-model if multi-model fails
+- **Cost optimization** - Smart model selection balancing quality and efficiency
 - **Style preservation** - Maintains each creator's unique voice, humor, and perspective
 - **Smart prompting** - Tailored prompts for different content types (tech, crypto, geopolitics, science)
 - **No information loss** - Extracts ALL valuable information while preserving storytelling approach
@@ -180,6 +202,13 @@ The `COOKIES_FILE` is essential for accessing age-restricted or private YouTube 
 - **Comprehensive error handling** - Retry logic, graceful failures, detailed logging
 - **Token optimization** - 2000 tokens balanced for quality vs cost
 - **Clean structure** - Separated concerns (models, services, utils) for easy maintenance
+
+### 🤖 **Enhanced QnA System**
+- **Channel-specific conversations** - Chat with individual channel databases using RAG
+- **Video tagging** - Tag specific videos in Telegram for targeted questioning
+- **Context preservation** - Persistent chat history for meaningful ongoing discussions
+- **Smart retrieval** - RAG searches through titles, descriptions, and subtitles
+- **Isolated contexts** - No cross-contamination between different channels
 
 ### 🌍 **Multi-Channel & Multi-Language**
 - **Unlimited channels** - Monitor any number of YouTube channels simultaneously
@@ -227,6 +256,72 @@ ChatGPT 5 explained in 7 minutes
 - **Style preservation** - Better maintenance of creator's unique voice
 - **Multi-language excellence** - Perfect support across languages
 - **Zero information loss** - Complete summaries instead of truncation
+
+---
+
+## Multi-Model Summarization
+
+The system now supports enhanced summarization using multiple LLM models for improved quality:
+
+### How It Works
+1. **Dual Summaries** - Two different models generate independent summaries
+2. **Intelligent Synthesis** - A third model analyzes both summaries and the original transcript
+3. **Best of Both** - Creates a final summary combining the strengths of both approaches
+4. **Fallback Protection** - Gracefully falls back to single-model if any step fails
+
+### Configuration
+Enable multi-model in your channel YAML:
+
+```yaml
+multi_model_config:
+  enabled: true
+  primary_model:
+    model_name: "gpt-4o-mini"      # Fast, cost-effective
+    api_key_env: "LLM_PROVIDER_API_KEY"
+    base_url_env: "BASE_URL"
+  secondary_model:
+    model_name: "claude-3-haiku"   # Different perspective
+    api_key_env: "ANTHROPIC_API_KEY"
+    base_url_env: "ANTHROPIC_BASE_URL"
+  synthesis_model:
+    model_name: "gpt-4o"           # High-quality synthesis
+    api_key_env: "LLM_PROVIDER_API_KEY"
+    base_url_env: "BASE_URL"
+  fallback_strategy: "best_summary"  # or "primary_summary", "single_model"
+```
+
+### Benefits
+- **Higher Quality** - Combines insights from multiple model perspectives
+- **Better Coverage** - Reduces chance of missing important information
+- **Validation** - Models cross-validate each other's outputs
+- **Flexibility** - Mix different model types (GPT, Claude, etc.) for optimal results
+
+---
+
+## Enhanced QnA System
+
+Interactive chat system with RAG (Retrieval-Augmented Generation) for channel-specific conversations:
+
+### Features
+- **Channel-Specific Chats** - Talk to individual channel databases without cross-contamination
+- **Video Tagging** - Tag specific videos in Telegram for targeted questions
+- **Context Preservation** - Maintains conversation history for meaningful discussions
+- **Smart Retrieval** - Searches through video titles, descriptions, and subtitles
+
+### Usage
+```bash
+# Start the QnA bot
+python -m yt2telegram.qna.bot
+
+# In Telegram:
+# /start - Begin conversation
+# /channel twominutepapers - Switch to specific channel
+# /tag video_id - Tag a video for context
+# Ask questions naturally about the content
+```
+
+### Configuration
+The QnA system uses the same channel configurations and automatically accesses the appropriate databases and content for each channel.
 
 ---
 
@@ -293,6 +388,7 @@ Minimal and focused:
 - `openai` - LLM integration  
 - `requests` - HTTP requests
 - `pyyaml` - Configuration files
+- `rich` - Enhanced terminal output and structured logging
 
 ---
 

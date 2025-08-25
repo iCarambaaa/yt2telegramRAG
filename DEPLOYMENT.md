@@ -46,10 +46,16 @@ ISAAC_ARTHUR_CHAT_ID="your_chat_id"
 IVAN_YAKOVINA_CHAT_ID="your_chat_id"
 ROBYNHD_CHAT_ID="your_chat_id"
 
-# LLM Provider (OpenRouter recommended)
+# Primary LLM Provider (OpenRouter recommended)
 LLM_PROVIDER_API_KEY="your_openrouter_api_key"
 MODEL="gpt-4o-mini"
 BASE_URL="https://openrouter.ai/api/v1"
+
+# Optional: Additional providers for multi-model
+ANTHROPIC_API_KEY="your_anthropic_key"
+ANTHROPIC_BASE_URL="https://api.anthropic.com"
+OPENAI_API_KEY="your_openai_key"
+OPENAI_BASE_URL="https://api.openai.com/v1"
 ```
 
 ### 4. YouTube Cookies Setup
@@ -65,6 +71,9 @@ cp COOKIES_FILE.example COOKIES_FILE
 ```bash
 # Test with single channel
 python run.py
+
+# Test QnA system (optional)
+python -m yt2telegram.qna.bot
 
 # Check logs for any issues
 tail -f logs/app.log
@@ -338,6 +347,55 @@ chmod 755 yt2telegram/downloads/
 # Test restore procedures
 ```
 
+## 🤖 Multi-Model Configuration
+
+### Model Selection Strategy
+```yaml
+# High-quality setup (recommended for important channels)
+multi_model_config:
+  enabled: true
+  primary_model:
+    model_name: "gpt-4o-mini"      # Fast, reliable
+  secondary_model:
+    model_name: "claude-3-haiku"   # Different perspective
+  synthesis_model:
+    model_name: "gpt-4o"           # Premium quality
+
+# Cost-optimized setup
+multi_model_config:
+  enabled: true
+  primary_model:
+    model_name: "gpt-3.5-turbo"    # Cheapest
+  secondary_model:
+    model_name: "gpt-4o-mini"      # Good quality/cost ratio
+  synthesis_model:
+    model_name: "gpt-4o-mini"      # Same as secondary
+```
+
+### Provider Configuration
+```bash
+# Environment variables for multiple providers
+LLM_PROVIDER_API_KEY="sk-or-v1-..."           # OpenRouter
+ANTHROPIC_API_KEY="sk-ant-api03-..."          # Anthropic
+OPENAI_API_KEY="sk-proj-..."                  # OpenAI
+
+BASE_URL="https://openrouter.ai/api/v1"
+ANTHROPIC_BASE_URL="https://api.anthropic.com"
+OPENAI_BASE_URL="https://api.openai.com/v1"
+```
+
+### Monitoring Multi-Model Usage
+```bash
+# Check token usage across models
+grep "token_usage" logs/app.log | tail -10
+
+# Monitor costs by provider
+grep "estimated_cost" logs/app.log | tail -10
+
+# Check fallback frequency
+grep "fallback" logs/app.log | tail -10
+```
+
 ## 📈 Scaling
 
 ### Multiple Servers
@@ -349,14 +407,17 @@ chmod 755 yt2telegram/downloads/
 ### Performance Optimization
 - Adjust `max_videos_to_fetch` based on channel activity
 - Use faster LLM models for high-volume channels
+- Configure multi-model strategically (faster models for summaries, premium for synthesis)
 - Implement caching for repeated requests
-- Monitor API rate limits
+- Monitor API rate limits across multiple providers
 
 ### Cost Optimization
 - Use cheaper LLM models for less critical channels
+- Configure multi-model with cost-effective model combinations
 - Implement smart scheduling based on channel activity
-- Monitor token usage and optimize prompts
-- Use local processing where possible
+- Monitor token usage across all model calls
+- Use fallback strategies to avoid unnecessary API calls
+- Optimize prompts for token efficiency
 
 ---
 
