@@ -13,10 +13,12 @@ from dotenv import load_dotenv
 from .utils.logging_config import setup_logging, LoggerFactory
 from .models.channel import ChannelConfig
 from .models.video import Video
+from .models.multi_model import MultiModelResult
 from .services.youtube_service import YouTubeService
 from .services.database_service import DatabaseService
 from .services.telegram_service import TelegramService
 from .services.llm_service import LLMService
+from .services.multi_model_llm_service import MultiModelLLMService
 from .utils.subtitle_cleaner import SubtitleCleaner
 from .config_finder import find_channel_configs
 
@@ -33,13 +35,34 @@ def process_channel(config: ChannelConfig) -> bool:
 
         # Initialize services
         db_service = DatabaseService(config.db_path)
+        logger.info("Database service initialized", 
+                   db_path=config.db_path,
+                   migration_status="completed" if hasattr(db_service, '_is_migrated') and db_service._is_migrated() else "not_applicable")
+        
         youtube_service = YouTubeService(
             cookies_file=config.cookies_file,
             retry_attempts=config.retry_attempts,
             retry_delay_seconds=config.retry_delay_seconds
         )
         telegram_service = TelegramService(bot_configs=config.telegram_bots_config)
-        llm_service = LLMService(llm_config=config.llm_config)
+        
+        # Choose LLM service based on configuration
+        if config.is_multi_model_enabled():
+            logger.info("Using multi-model summarization approach", 
+                       channel_name=config.name,
+                       primary_model=config.multi_model_config.get('primary_model'),
+                       secondary_model=config.multi_model_config.get('secondary_model'),
+                       synthesis_model=config.multi_model_config.get('synthesis_model'))
+            llm_service = MultiModelLLMService(
+                llm_config=config.llm_config,
+                multi_model_config=config.multi_model_config
+            )
+        else:
+            logger.info("Using single-model summarization approach", 
+                       channel_name=config.name,
+                       model=config.llm_config.get('llm_model', 'default'))
+            llm_service = LLMService(llm_config=config.llm_config)
+        
         subtitle_cleaner = SubtitleCleaner()
 
 
@@ -92,20 +115,54 @@ def process_channel(config: ChannelConfig) -> bool:
 
             # Generate summary
             summary = ""
+            multi_model_result = None
+            
             if cleaned_subtitles:
                 try:
-                    summary = llm_service.summarize(cleaned_subtitles)
+                    if config.is_multi_model_enabled():
+                        logger.info("Generating multi-model summary", video_id=video.id)
+                        multi_model_result = llm_service.multi_model_summarize(cleaned_subtitles)
+                        summary = multi_model_result.final_summary
+                        
+                        # Set model information for tracking
+                        video.primary_model = config.multi_model_config.get('primary_model')
+                        video.secondary_model = config.multi_model_config.get('secondary_model')
+                        video.synthesis_model = config.multi_model_config.get('synthesis_model')
+                        
+                        logger.info("Multi-model summary generated successfully", 
+                                   video_id=video.id, 
+                                   summary_length=len(summary),
+                                   fallback_used=multi_model_result.fallback_used,
+                                   processing_time=multi_model_result.processing_time)
+                    else:
+                        logger.info("Generating single-model summary", video_id=video.id)
+                        summary = llm_service.summarize(cleaned_subtitles)
+                        
+                        # Set model information for single-model tracking
+                        video.primary_model = config.llm_config.get('llm_model')
+                        
+                        logger.info("Single-model summary generated successfully", 
+                                   video_id=video.id, 
+                                   summary_length=len(summary))
                 except Exception as e:
-                    logger.error("Failed to generate summary", error=str(e), video_id=video.id)
-                    summary = "Summary generation failed"
+                    summarization_approach = "multi-model" if config.is_multi_model_enabled() else "single-model"
+                    logger.error("Failed to generate summary", 
+                               error=str(e), 
+                               video_id=video.id,
+                               approach=summarization_approach)
+                    summary = f"Summary generation failed ({summarization_approach})"
 
             # Update video with processed data
             video.raw_subtitles = raw_subtitles
             video.cleaned_subtitles = cleaned_subtitles
             video.summary = summary
 
-            # Save to database
-            db_service.add_video(video)
+            # Save to database with multi-model data
+            logger.info("Saving video to database", 
+                       video_id=video.id,
+                       has_multi_model_data=multi_model_result is not None,
+                       summarization_method="multi-model" if multi_model_result else "single")
+            db_service.add_video_with_multi_model_data(video, multi_model_result)
 
             # Send Telegram notification with proper formatting
             if summary:

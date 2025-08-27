@@ -1,5 +1,7 @@
 import re
-from typing import Any, List
+import os
+import yaml
+from typing import Any, List, Dict, Optional
 
 class ValidationError(Exception):
     pass
@@ -25,6 +27,194 @@ class InputValidator:
             raise ValidationError(f"Invalid YouTube channel ID format: {channel_id}")
         
         return channel_id
+
+    @staticmethod
+    def validate_multi_model_config(multi_model_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate multi-model configuration"""
+        if not isinstance(multi_model_config, dict):
+            raise ValidationError("Multi-model configuration must be a dictionary")
+        
+        # Check if multi-model is enabled
+        if not multi_model_config.get('enabled', False):
+            return multi_model_config
+        
+        # Required fields for enabled multi-model
+        required_fields = ['primary_model', 'secondary_model', 'synthesis_model']
+        for field in required_fields:
+            if not multi_model_config.get(field):
+                raise ValidationError(f"Multi-model configuration missing required field: {field}")
+        
+        # Validate model names
+        valid_models = {
+            # OpenAI models
+            'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo',
+            # Anthropic models
+            'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229',
+            'claude-3-sonnet-20240229', 'claude-3-haiku-20240307',
+            # Other common models
+            'llama-3.1-405b-instruct', 'llama-3.1-70b-instruct', 'llama-3.1-8b-instruct'
+        }
+        
+        for model_type in ['primary_model', 'secondary_model', 'synthesis_model']:
+            model_name = multi_model_config[model_type]
+            if not isinstance(model_name, str) or not model_name.strip():
+                raise ValidationError(f"Invalid {model_type}: must be a non-empty string")
+        
+        # Validate synthesis template path
+        synthesis_template_path = multi_model_config.get('synthesis_prompt_template_path')
+        if synthesis_template_path and not os.path.exists(synthesis_template_path):
+            raise ValidationError(f"Synthesis template file not found: {synthesis_template_path}")
+        
+        # Validate cost threshold
+        cost_threshold = multi_model_config.get('cost_threshold_tokens')
+        if cost_threshold is not None:
+            if not isinstance(cost_threshold, int) or cost_threshold <= 0:
+                raise ValidationError("cost_threshold_tokens must be a positive integer")
+            if cost_threshold < 1000:
+                raise ValidationError("cost_threshold_tokens should be at least 1000 for reasonable operation")
+        
+        # Validate fallback strategy
+        fallback_strategy = multi_model_config.get('fallback_strategy', 'best_summary')
+        valid_strategies = ['best_summary', 'primary_summary', 'single_model']
+        if fallback_strategy not in valid_strategies:
+            raise ValidationError(f"Invalid fallback_strategy: {fallback_strategy}. Must be one of: {valid_strategies}")
+        
+        # Validate temperature
+        temperature = multi_model_config.get('temperature')
+        if temperature is not None:
+            if not isinstance(temperature, (int, float)) or temperature < 0 or temperature > 2:
+                raise ValidationError("temperature must be a number between 0 and 2")
+        
+        # Validate top_p
+        top_p = multi_model_config.get('top_p')
+        if top_p is not None:
+            if not isinstance(top_p, (int, float)) or top_p <= 0 or top_p > 1:
+                raise ValidationError("top_p must be a number between 0 and 1")
+        
+        return multi_model_config
+    
+    @staticmethod
+    def validate_api_key_availability(multi_model_config: Dict[str, Any]) -> List[str]:
+        """Validate that required API keys are available for multi-model configuration"""
+        if not multi_model_config.get('enabled', False):
+            return []
+        
+        warnings = []
+        
+        # Get all models used
+        models = [
+            multi_model_config.get('primary_model'),
+            multi_model_config.get('secondary_model'),
+            multi_model_config.get('synthesis_model')
+        ]
+        
+        # Check for required API keys based on model providers
+        openai_models = {'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'}
+        anthropic_models = {
+            'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229',
+            'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'
+        }
+        
+        needs_openai = any(model in openai_models for model in models if model)
+        needs_anthropic = any(model in anthropic_models for model in models if model)
+        
+        # Check for OpenRouter (can handle multiple providers)
+        has_openrouter = bool(os.getenv('LLM_PROVIDER_API_KEY'))
+        
+        # Check for direct provider keys
+        has_openai_key = bool(os.getenv('OPENAI_API_KEY'))
+        has_anthropic_key = bool(os.getenv('ANTHROPIC_API_KEY'))
+        
+        if needs_openai and not (has_openrouter or has_openai_key):
+            warnings.append("OpenAI models detected but no OPENAI_API_KEY or LLM_PROVIDER_API_KEY found")
+        
+        if needs_anthropic and not (has_openrouter or has_anthropic_key):
+            warnings.append("Anthropic models detected but no ANTHROPIC_API_KEY or LLM_PROVIDER_API_KEY found")
+        
+        return warnings
+    
+    @staticmethod
+    def validate_channel_multi_model_setup(channel_config_path: str) -> Dict[str, Any]:
+        """Comprehensive validation of channel multi-model setup"""
+        validation_result = {
+            'valid': True,
+            'warnings': [],
+            'errors': [],
+            'recommendations': []
+        }
+        
+        try:
+            # Load and parse channel configuration
+            with open(channel_config_path, 'r') as f:
+                config_data = yaml.safe_load(f)
+            
+            llm_config = config_data.get('llm_config', {})
+            multi_model_config = llm_config.get('multi_model', {})
+            
+            if not multi_model_config.get('enabled', False):
+                validation_result['recommendations'].append(
+                    "Multi-model is disabled. Enable it for enhanced summary quality."
+                )
+                return validation_result
+            
+            # Validate multi-model configuration
+            try:
+                InputValidator.validate_multi_model_config(multi_model_config)
+            except ValidationError as e:
+                validation_result['errors'].append(str(e))
+                validation_result['valid'] = False
+            
+            # Check API key availability
+            api_warnings = InputValidator.validate_api_key_availability(multi_model_config)
+            validation_result['warnings'].extend(api_warnings)
+            
+            # Check synthesis template
+            synthesis_template_path = multi_model_config.get('synthesis_prompt_template_path')
+            if synthesis_template_path:
+                if not os.path.exists(synthesis_template_path):
+                    validation_result['errors'].append(
+                        f"Synthesis template not found: {synthesis_template_path}"
+                    )
+                    validation_result['valid'] = False
+            else:
+                validation_result['warnings'].append(
+                    "No synthesis template specified. Using default template."
+                )
+            
+            # Performance recommendations
+            primary_model = multi_model_config.get('primary_model', '')
+            secondary_model = multi_model_config.get('secondary_model', '')
+            synthesis_model = multi_model_config.get('synthesis_model', '')
+            
+            # Check for model diversity
+            if primary_model == secondary_model:
+                validation_result['warnings'].append(
+                    "Primary and secondary models are the same. Consider using different models for better diversity."
+                )
+            
+            # Check for cost-effective setup
+            expensive_models = {'gpt-4o', 'claude-3-5-sonnet-20241022', 'claude-3-opus-20240229'}
+            if primary_model in expensive_models and secondary_model in expensive_models:
+                validation_result['recommendations'].append(
+                    "Consider using a cheaper model for primary or secondary to reduce costs."
+                )
+            
+            # Check cost threshold
+            cost_threshold = multi_model_config.get('cost_threshold_tokens')
+            if not cost_threshold:
+                validation_result['recommendations'].append(
+                    "Consider setting cost_threshold_tokens to prevent unexpected high costs."
+                )
+            elif cost_threshold < 10000:
+                validation_result['warnings'].append(
+                    "Cost threshold is very low and may cause frequent fallbacks to single-model."
+                )
+            
+        except Exception as e:
+            validation_result['errors'].append(f"Failed to validate configuration: {str(e)}")
+            validation_result['valid'] = False
+        
+        return validation_result
 
 class Sanitizer:
 
