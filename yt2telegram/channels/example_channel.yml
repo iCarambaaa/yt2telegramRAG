@@ -1,4 +1,8 @@
 # yt2telegram/channels/example_channel.yml
+# 
+# TEMPLATE FILE - This file is automatically skipped during production runs
+# Use this as a template to create your own channel configurations
+#
 
 # General Channel Information
 name: "Example Channel"

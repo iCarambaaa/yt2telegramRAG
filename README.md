@@ -75,8 +75,9 @@ yt2telegram/
 │   ├── validators.py
 │   └── logging_config.py
 ├── channels/              # Channel configurations
-│   ├── example_channel.yml
-│   └── your_channels.yml
+│   ├── example_channel.yml    # Template (skipped in production)
+│   ├── example_multi_model.yml # Multi-model template (skipped in production)
+│   └── your_channels.yml      # Your actual channel configs
 └── qna/                   # Q&A bot functionality
 ```
 
@@ -99,6 +100,8 @@ python add_channel_smart.py UCbfYPyITQ-7l4upoX8nvctg
 - 📝 **Generates** personalized prompts that preserve the creator's unique voice
 - ⚙️ **Creates** optimized channel configuration automatically
 - 🌍 **Detects** original language and uses appropriate captions
+
+**Note:** Example configuration files (`example_channel.yml` and `example_multi_model.yml`) are automatically skipped during production runs and serve only as templates.
 
 ### Manual Channel Configuration
 You can also create YAML files manually in `yt2telegram/channels/`:
