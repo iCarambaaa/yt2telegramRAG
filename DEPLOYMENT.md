@@ -46,10 +46,16 @@ ISAAC_ARTHUR_CHAT_ID="your_chat_id"
 IVAN_YAKOVINA_CHAT_ID="your_chat_id"
 ROBYNHD_CHAT_ID="your_chat_id"
 
-# LLM Provider (OpenRouter recommended)
+# Primary LLM Provider (OpenRouter recommended)
 LLM_PROVIDER_API_KEY="your_openrouter_api_key"
 MODEL="gpt-4o-mini"
 BASE_URL="https://openrouter.ai/api/v1"
+
+# Multi-Model Support (Optional for enhanced quality)
+OPENAI_API_KEY="your_openai_key"
+ANTHROPIC_API_KEY="your_anthropic_key"
+OPENAI_BASE_URL="https://api.openai.com/v1"
+ANTHROPIC_BASE_URL="https://api.anthropic.com"
 ```
 
 ### 4. YouTube Cookies Setup
@@ -65,6 +71,9 @@ cp COOKIES_FILE.example COOKIES_FILE
 ```bash
 # Test with single channel
 python run.py
+
+# Test QnA bot (optional)
+python -m yt2telegram.qna.bot
 
 # Check logs for any issues
 tail -f logs/app.log

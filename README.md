@@ -1,11 +1,14 @@
 # YouTube to Telegram
 
-Automatically monitors YouTube channels, generates comprehensive AI-powered summaries that preserve each creator's unique style, and delivers them reliably to Telegram with smart message splitting.
+Advanced automated content monitoring and summarization system that monitors YouTube channels, generates enhanced AI-powered summaries using multi-model approach, and provides interactive QnA with channel-specific RAG conversations.
 
 **Key Features:**
+- ✅ **Multi-Model Summarization** - Enhanced quality through dual-model approach with intelligent synthesis
+- ✅ **Channel-Specific QnA** - RAG-powered conversations with individual channel databases
 - ✅ **Smart Channel Setup** - Automated channel analysis and configuration
 - ✅ **Style-Preserving Summaries** - Maintains each creator's unique voice and perspective  
 - ✅ **Smart Message Splitting** - Preserves all content across multiple messages when needed
+- ✅ **Video Tagging System** - Tag specific videos for targeted questioning with full context
 - ✅ **Robust Error Handling** - HTML escaping, Markdown parsing fixes, and fallback mechanisms
 - ✅ **Optimized Processing** - Advanced subtitle cleaning with 88-89% size reduction
 - ✅ **Multi-Language Support** - Perfect support for English, German, Russian, and more
@@ -44,7 +47,11 @@ python add_channel_smart.py UCbfYPyITQ-7l4upoX8nvctg
 
 ### 5. Run
 ```bash
+# Main processing (monitors channels and generates summaries)
 python run.py
+
+# Interactive QnA bot (optional)
+python -m yt2telegram.qna.bot
 ```
 
 ---
@@ -61,7 +68,8 @@ yt2telegram/
 │   ├── youtube_service.py # YouTube API & downloads
 │   ├── telegram_service.py# Telegram notifications
 │   ├── database_service.py# SQLite operations
-│   └── llm_service.py     # AI summarization
+│   ├── llm_service.py     # Single-model AI summarization
+│   └── multi_model_llm_service.py # Multi-model enhanced summarization
 ├── utils/                 # Helper functions
 │   ├── subtitle_cleaner.py
 │   ├── validators.py
@@ -95,6 +103,7 @@ python add_channel_smart.py UCbfYPyITQ-7l4upoX8nvctg
 ### Manual Channel Configuration
 You can also create YAML files manually in `yt2telegram/channels/`:
 
+#### Single-Model Configuration
 ```yaml
 name: "Your Channel"
 channel_id: "UCxxxxxxxxxxxxxxxxxx"
@@ -116,16 +125,51 @@ telegram_bots:
 subtitles: ["en"]
 ```
 
+#### Multi-Model Configuration (Enhanced Quality)
+```yaml
+name: "Your Channel"
+channel_id: "UCxxxxxxxxxxxxxxxxxx"
+db_path: "yt2telegram/downloads/your_channel.db"
+cookies_file: "COOKIES_FILE"
+max_videos_to_fetch: 3
+
+multi_model_config:
+  model_a:
+    llm_api_key_env: "OPENAI_API_KEY"
+    llm_model: "gpt-4o-mini"
+    llm_base_url: "https://api.openai.com/v1"
+    llm_prompt_template_path: "yt2telegram/prompts/your_prompt.md"
+  model_b:
+    llm_api_key_env: "ANTHROPIC_API_KEY"
+    llm_model: "claude-3-5-haiku-20241022"
+    llm_base_url: "https://api.anthropic.com"
+    llm_prompt_template_path: "yt2telegram/prompts/your_prompt.md"
+  synthesis_template_path: "yt2telegram/prompts/synthesis_template.md"
+
+telegram_bots:
+  - name: "Your Bot"
+    token_env: "TELEGRAM_BOT_TOKEN"
+    chat_id_env: "YOUR_CHANNEL_CHAT_ID"
+
+subtitles: ["en"]
+```
+
 ### Environment Variables (.env)
 ```bash
 # Telegram
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_ID=your_chat_id
 
-# LLM Provider (OpenRouter, OpenAI, etc.)
+# Primary LLM Provider (OpenRouter, OpenAI, etc.)
 LLM_PROVIDER_API_KEY=your_api_key
 MODEL=gpt-4o-mini
 BASE_URL=https://openrouter.ai/api/v1
+
+# Multi-Model Support (Optional)
+OPENAI_API_KEY=your_openai_key
+ANTHROPIC_API_KEY=your_anthropic_key
+OPENAI_BASE_URL=https://api.openai.com/v1
+ANTHROPIC_BASE_URL=https://api.anthropic.com
 ```
 
 ---
@@ -150,10 +194,12 @@ The `COOKIES_FILE` is essential for accessing age-restricted or private YouTube 
 ## Key Features
 
 ### 🧠 **Advanced AI Summaries**
+- **Multi-model enhancement** - Dual-model approach with intelligent synthesis for superior quality
 - **Comprehensive extraction** - 2000 tokens for detailed, complete summaries
 - **Style preservation** - Maintains each creator's unique voice, humor, and perspective
 - **Smart prompting** - Tailored prompts for different content types (tech, crypto, geopolitics, science)
 - **No information loss** - Extracts ALL valuable information while preserving storytelling approach
+- **Quality synthesis** - Combines strengths of different models for optimal results
 
 ### 📱 **Smart Telegram Delivery**
 - **Multi-part messages** - Automatically splits long summaries into Part 1/2 format
@@ -186,6 +232,13 @@ The `COOKIES_FILE` is essential for accessing age-restricted or private YouTube 
 - **Individual configurations** - Separate prompts and databases per channel
 - **Language flexibility** - Automatic original language caption detection and processing
 - **Isolated pipelines** - Each channel processes independently for reliability
+
+### 💬 **Interactive QnA System**
+- **Channel-specific conversations** - RAG-powered Q&A with individual channel knowledge bases
+- **Video tagging system** - Tag specific videos for targeted questioning with full context
+- **Semantic search** - Find relevant content across all videos in a channel
+- **Context-aware responses** - Answers based on actual video content and summaries
+- **Multi-channel support** - Separate conversation contexts for each monitored channel
 
 ---
 

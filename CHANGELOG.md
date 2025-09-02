@@ -1,5 +1,56 @@
 # Changelog
 
+## [2.3.0] - 2025-02-09
+
+### 🤖 **Multi-Model Summarization System**
+- **Dual-model approach**: Enhanced quality through intelligent synthesis of multiple AI models
+- **Model flexibility**: Support for OpenAI, Anthropic, and other providers simultaneously
+- **Quality synthesis**: Combines strengths of different models for optimal results
+- **Configurable pipelines**: Easy setup for single-model or multi-model processing
+- **Comprehensive testing**: Full test suite for multi-model functionality
+
+### 💬 **Interactive QnA System with RAG**
+- **Channel-specific conversations**: Individual knowledge bases for each monitored channel
+- **Video tagging system**: Tag specific videos for targeted questioning with full context
+- **Semantic search**: Find relevant content across all videos in a channel
+- **Context-aware responses**: Answers based on actual video content and summaries
+- **RAG integration**: Retrieval-augmented generation for accurate, contextual responses
+
+### 🗄️ **Enhanced Database Architecture**
+- **Multi-model support**: Database schema updated for dual-model results storage
+- **QnA integration**: Conversation history and video tagging support
+- **Performance optimizations**: Improved query performance and indexing
+- **Migration system**: Automatic database schema updates
+- **Analytics support**: Enhanced metrics and reporting capabilities
+
+### 🧪 **Comprehensive Testing Framework**
+- **Multi-model testing**: Full test coverage for dual-model summarization
+- **Database testing**: Comprehensive database service testing
+- **Integration testing**: End-to-end testing for complete workflows
+- **Performance testing**: Database performance and optimization testing
+- **Error scenario testing**: Robust error handling validation
+
+### 🏗️ **Architecture Improvements**
+- **Service separation**: Clear separation between single and multi-model services
+- **Configuration flexibility**: Support for both single and multi-model channel configs
+- **Template system**: Synthesis template system for multi-model results
+- **Error handling**: Enhanced error handling across all services
+- **Code organization**: Improved project structure and maintainability
+
+### 📚 **Documentation Enhancements**
+- **Multi-model setup**: Complete guide for configuring dual-model processing
+- **QnA system usage**: Documentation for interactive bot functionality
+- **Architecture docs**: Updated system architecture documentation
+- **Configuration examples**: Comprehensive configuration examples
+- **Migration guides**: Clear upgrade paths for existing installations
+
+### 🔧 **Technical Improvements**
+- **Synthesis templates**: Intelligent combination of multiple model outputs
+- **Configuration validation**: Enhanced validation for multi-model setups
+- **Performance monitoring**: Better metrics and monitoring capabilities
+- **Resource optimization**: Improved resource usage and efficiency
+- **Backward compatibility**: Full compatibility with existing single-model setups
+
 ## [2.2.0] - 2025-08-19
 
 ### 🎨 **Enhanced Structured Logging System**

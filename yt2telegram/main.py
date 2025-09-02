@@ -17,6 +17,7 @@ from .services.youtube_service import YouTubeService
 from .services.database_service import DatabaseService
 from .services.telegram_service import TelegramService
 from .services.llm_service import LLMService
+from .services.multi_model_llm_service import MultiModelLLMService
 from .utils.subtitle_cleaner import SubtitleCleaner
 from .config_finder import find_channel_configs
 
@@ -39,7 +40,20 @@ def process_channel(config: ChannelConfig) -> bool:
             retry_delay_seconds=config.retry_delay_seconds
         )
         telegram_service = TelegramService(bot_configs=config.telegram_bots_config)
-        llm_service = LLMService(llm_config=config.llm_config)
+        
+        # Initialize appropriate LLM service based on configuration
+        multi_model_config = config.llm_config.get('multi_model', {})
+        if multi_model_config.get('enabled', False):
+            logger.info("Initializing multi-model LLM service", 
+                       primary_model=multi_model_config.get('primary_model'),
+                       secondary_model=multi_model_config.get('secondary_model'),
+                       synthesis_model=multi_model_config.get('synthesis_model'))
+            llm_service = MultiModelLLMService(llm_config=config.llm_config)
+        else:
+            logger.info("Initializing single-model LLM service", 
+                       model=config.llm_config.get('llm_model'))
+            llm_service = LLMService(llm_config=config.llm_config)
+        
         subtitle_cleaner = SubtitleCleaner()
 
 
@@ -52,8 +66,11 @@ def process_channel(config: ChannelConfig) -> bool:
         )
 
         processed_count = 0
+        successful_count = 0
+        failed_count = 0
+        
         for video in videos:
-            logger.info("Processing video", video_id=video.id, video_title=video.title)
+            logger.info("Processing video", video_id=video.id, video_title=video.title, published_date=video.published_at)
 
             # Skip if already processed
             if db_service.is_video_processed(video.id):
@@ -87,17 +104,51 @@ def process_channel(config: ChannelConfig) -> bool:
                     os.remove(raw_subtitle_path)
                 except Exception as e:
                     logger.warning("Could not remove raw subtitle file", error=str(e), file_path=raw_subtitle_path)
+                
+                logger.info("Successfully processed subtitles", 
+                           video_id=video.id, 
+                           raw_size=len(raw_subtitles), 
+                           cleaned_size=len(cleaned_subtitles),
+                           compression_ratio=f"{(1 - len(cleaned_subtitles)/len(raw_subtitles))*100:.1f}%" if raw_subtitles else "N/A")
             else:
-                logger.warning("No subtitles downloaded for video", video_id=video.id)
+                logger.warning("No subtitles downloaded for video - may be age-restricted or region-blocked", video_id=video.id)
 
             # Generate summary
             summary = ""
             if cleaned_subtitles:
                 try:
-                    summary = llm_service.summarize(cleaned_subtitles)
+                    logger.info("Generating summary", video_id=video.id, subtitle_length=len(cleaned_subtitles))
+                    
+                    # Check if using multi-model service
+                    if hasattr(llm_service, 'summarize_enhanced'):
+                        # Multi-model service - get enhanced results
+                        summary_result = llm_service.summarize_enhanced(cleaned_subtitles)
+                        summary = summary_result.get('final_summary', '')
+                        
+                        # Populate multi-model fields
+                        video.summarization_method = summary_result.get('summarization_method', 'multi_model')
+                        video.primary_summary = summary_result.get('primary_summary')
+                        video.secondary_summary = summary_result.get('secondary_summary')
+                        video.synthesis_summary = summary_result.get('synthesis_summary')
+                        video.primary_model = summary_result.get('primary_model')
+                        video.secondary_model = summary_result.get('secondary_model')
+                        video.synthesis_model = summary_result.get('synthesis_model')
+                        video.processing_time_seconds = summary_result.get('processing_time_seconds')
+                        video.fallback_used = summary_result.get('fallback_used', False)
+                        video.token_usage_json = summary_result.get('token_usage_json', '{}')
+                        video.cost_estimate = summary_result.get('cost_estimate', 0.0)
+                    else:
+                        # Single-model service
+                        summary = llm_service.summarize(cleaned_subtitles)
+                        video.summarization_method = 'single_model'
+                    
+                    logger.info("Successfully generated summary", video_id=video.id, summary_length=len(summary))
                 except Exception as e:
                     logger.error("Failed to generate summary", error=str(e), video_id=video.id)
                     summary = "Summary generation failed"
+                    video.summarization_method = 'failed'
+            else:
+                logger.warning("No subtitles available for summary generation", video_id=video.id)
 
             # Update video with processed data
             video.raw_subtitles = raw_subtitles
@@ -108,6 +159,7 @@ def process_channel(config: ChannelConfig) -> bool:
             db_service.add_video(video)
 
             # Send Telegram notification with proper formatting
+            telegram_success = False
             if summary:
                 try:
                     # Determine channel type for formatting
@@ -122,19 +174,30 @@ def process_channel(config: ChannelConfig) -> bool:
                         video.title,
                         video.id,
                         summary,
-                        channel_type
+                        channel_type,
+                        video.published_at
                     )
+                    telegram_success = True
+                    logger.info("Successfully sent Telegram notification", video_id=video.id)
                 except Exception as e:
                     logger.error("Failed to send Telegram notification", error=str(e), video_id=video.id)
+                    telegram_success = False
+            else:
+                logger.warning("No summary available, skipping Telegram notification", video_id=video.id)
 
             processed_count += 1
-            logger.info("Successfully processed video", video_id=video.id, video_title=video.title)
+            if telegram_success:
+                successful_count += 1
+                logger.info("Successfully processed and sent video", video_id=video.id, video_title=video.title)
+            else:
+                failed_count += 1
+                logger.error("Processed video but failed to send notification", video_id=video.id, video_title=video.title)
 
         # Update last check timestamp
         db_service.update_last_check(config.channel_id, datetime.now().isoformat())
         
-        logger.info("Finished processing channel", channel_name=config.name, processed_count=processed_count)
-        return True
+        logger.info("Finished processing channel", channel_name=config.name, processed_count=processed_count, successful_notifications=successful_count, failed_notifications=failed_count)
+        return successful_count > 0 or processed_count == 0  # Success if we sent notifications or had nothing to process
 
     except Exception as e:
         logger.error("Error processing channel", channel_name=config.name, error=str(e))

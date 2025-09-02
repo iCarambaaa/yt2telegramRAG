@@ -41,7 +41,14 @@ CRITICAL RULES:
 - Rich emoji usage for visual appeal and structure
 - Make it engaging and easy to scan
 
-Cut out ads and call to like and subscribe.
+**SPONSORED CONTENT FILTERING:**
+- COMPLETELY EXCLUDE all sponsored segments, ads, and promotional content
+- Remove calls to like, subscribe, ring the bell, or follow social media
+- Skip sponsor mentions, product placements, and affiliate links
+- Exclude Patreon plugs, merchandise promotions, and donation requests
+- Remove channel promotion and cross-promotion content
+- Skip intro/outro promotional segments
+- Focus ONLY on the core educational and technical content
 
 Process the entire transcript thoroughly - miss nothing important.
 
