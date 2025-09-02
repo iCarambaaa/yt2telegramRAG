@@ -50,54 +50,45 @@ class TelegramService:
         
         logger.info("Initialized Telegram bots", count=len(self.bots))
 
-    def send_message(self, message: str, parse_mode: str = None):
-        """Send message to all configured bots"""
-        if not self.bots:
-            logger.warning("No Telegram bots configured")
-            return
-        
-        for bot in self.bots:
-            self._send_to_bot(bot, message, parse_mode)
-
     @network_retry
-    def _send_to_bot(self, bot: Dict, message: str, parse_mode: str = None):
-        """Send message to a specific bot with detailed error logging"""
-        url = f"https://api.telegram.org/bot{bot['token']}/sendMessage"
+    def send_message(self, message: str, parse_mode: str = "HTML", disable_preview: bool = True):
+        """Send message to all configured bots with network retry"""
+        if not self.bots:
+            logger.error("No bots configured")
+            return False
         
-        payload = {
-            'chat_id': bot['chat_id'],
-            'text': message
-        }
-        
-        if parse_mode:
-            payload['parse_mode'] = parse_mode
-        
-        response = requests.post(url, json=payload, timeout=30)
-        
-        if response.status_code == 200:
-            logger.info("Message sent successfully", bot_name=bot['name'])
-            return
-        else:
-            # Log detailed error information
-            error_details = ""
+        success = True
+        for bot in self.bots:
             try:
-                error_json = response.json()
-                error_details = f"Error: {error_json.get('description', 'Unknown error')}"
-            except:
-                error_details = f"HTTP {response.status_code}: {response.text[:200]}"
-            
-            # Don't retry on certain errors
-            if response.status_code == 400:  # Bad Request - likely formatting issue
-                raise requests.exceptions.RequestException(f"Bad Request: {error_details}")
-            
-            response.raise_for_status()
+                url = f"https://api.telegram.org/bot{bot['token']}/sendMessage"
+                
+                payload = {
+                    'chat_id': bot['chat_id'],
+                    'text': message,
+                    'parse_mode': parse_mode,
+                    'disable_web_page_preview': disable_preview
+                }
+                
+                response = requests.post(url, json=payload, timeout=30)
+                response.raise_for_status()
+                
+                logger.info("Message sent successfully", bot_name=bot['name'])
+                
+            except requests.exceptions.RequestException as e:
+                logger.error("Failed to send message", bot_name=bot['name'], error=str(e))
+                success = False
+            except Exception as e:
+                logger.error("Unexpected error sending message", bot_name=bot['name'], error=str(e))
+                success = False
+        
+        return success
 
-
-    
-    def send_video_notification(self, channel_name: str, video_title: str, video_id: str, summary: str, channel_type: str = "default"):
+    def send_video_notification(self, channel_name: str, video_title: str, video_id: str, summary: str, channel_type: str = "default", published_date: str = None):
         """Send formatted video notification with robust error handling"""
         
         video_url = f"https://www.youtube.com/watch?v={video_id}"
+        
+
         
         # Clean the summary for safe Telegram sending
         clean_summary = Sanitizer.clean_for_telegram(summary)
@@ -139,58 +130,77 @@ class TelegramService:
                 
                 html_message = f"🎬 <b>{escaped_header}</b>\n\n"
                 if part_index == 0:
-                    html_message += f"📺 <b>{escaped_title}</b>\n\n"
+                    # Format title with published date if available
+                    if published_date:
+                        # Format date nicely (assuming YYYY-MM-DD format)
+                        try:
+                            from datetime import datetime
+                            date_obj = datetime.strptime(published_date, "%Y-%m-%d")
+                            formatted_date = date_obj.strftime("%B %d, %Y")
+                            html_message += f"📺 <b>{escaped_title}</b>\n"
+                            html_message += f"📅 <i>{formatted_date}</i>\n\n"
+                        except:
+                            # Fallback if date parsing fails
+                            html_message += f"📺 <b>{escaped_title}</b>\n"
+                            html_message += f"📅 <i>{published_date}</i>\n\n"
+                    else:
+                        html_message += f"📺 <b>{escaped_title}</b>\n\n"
                     html_message += f"━━━━━━━━━━━━━━━━━━━━\n\n"
-                html_message += f"{clean_summary}\n\n"
+                html_message += f"{clean_summary}"
                 if part_index == total_parts - 1:
-                    html_message += f"━━━━━━━━━━━━━━━━━━━━\n"
-                    html_message += f"🔗 <a href=\"{video_url}\">Watch Full Video</a>"
+                    html_message += f"\n\n━━━━━━━━━━━━━━━━━━━━"
+                    html_message += f"\n🔗 <a href=\"{video_url}\">Watch Full Video</a>"
                     if escaped_footer:
                         html_message += f"\n\n{escaped_footer}"
                 
-                self.send_message(html_message, parse_mode="HTML")
+                # Enable thumbnail preview for the last part (which contains the video link)
+                enable_preview = (part_index == total_parts - 1)
+                self.send_message(html_message, parse_mode="HTML", disable_preview=not enable_preview)
                 logger.info("Sent HTML formatted message part", part=part_index + 1, total_parts=total_parts, channel_name=channel_name)
                 part_success = True
                 
             except Exception as e:
-                logger.warning("HTML formatting failed", channel_name=channel_name, part=part_index + 1, error=str(e))
-            
-            # Fallback: Plain text (guaranteed to work)
-            if not part_success:
+                logger.warning("HTML formatting failed, trying fallback", error=str(e))
+                
+                # Fallback: Plain text with minimal formatting
                 try:
-                    # Clean the summary for plain text by removing HTML formatting
-                    plain_summary = summary_part
-                    plain_summary = re.sub(r'<b>([^<]+)</b>', r'\1', plain_summary)    # Remove <b>bold</b>
-                    plain_summary = re.sub(r'<i>([^<]+)</i>', r'\1', plain_summary)    # Remove <i>italic</i>
-                    plain_summary = re.sub(r'<code>([^<]+)</code>', r'\1', plain_summary)  # Remove <code>code</code>
-                    plain_summary = re.sub(r'<[^>]+>', '', plain_summary)          # Remove any remaining HTML tags
-                    plain_summary = re.sub(r'&amp;', '&', plain_summary)           # Unescape HTML entities
-                    plain_summary = re.sub(r'&lt;', '<', plain_summary)
-                    plain_summary = re.sub(r'&gt;', '>', plain_summary)
+                    # Strip all formatting and send as plain text
+                    plain_summary = Sanitizer.strip_all_formatting(summary_part)
                     
                     plain_message = f"🎬 {part_header}\n\n"
                     if part_index == 0:
-                        plain_message += f"📺 {video_title}\n\n"
+                        if published_date:
+                            try:
+                                from datetime import datetime
+                                date_obj = datetime.strptime(published_date, "%Y-%m-%d")
+                                formatted_date = date_obj.strftime("%B %d, %Y")
+                                plain_message += f"📺 {video_title}\n"
+                                plain_message += f"📅 {formatted_date}\n\n"
+                            except:
+                                plain_message += f"📺 {video_title}\n"
+                                plain_message += f"📅 {published_date}\n\n"
+                        else:
+                            plain_message += f"📺 {video_title}\n\n"
                         plain_message += f"━━━━━━━━━━━━━━━━━━━━\n\n"
-                    plain_message += f"{plain_summary}\n\n"
+                    plain_message += f"{plain_summary}"
                     if part_index == total_parts - 1:
-                        plain_message += f"━━━━━━━━━━━━━━━━━━━━\n"
-                        plain_message += f"🔗 Watch: {video_url}"
+                        plain_message += f"\n\n━━━━━━━━━━━━━━━━━━━━"
+                        plain_message += f"\n🔗 {video_url}"
                         if footer:
                             plain_message += f"\n\n{footer}"
                     
-                    self.send_message(plain_message, parse_mode=None)
+                    # Enable thumbnail preview for the last part (which contains the video link)
+                    enable_preview = (part_index == total_parts - 1)
+                    self.send_message(plain_message, parse_mode=None, disable_preview=not enable_preview)
                     logger.info("Sent plain text message part", part=part_index + 1, total_parts=total_parts, channel_name=channel_name)
                     part_success = True
                     
-                except Exception as e:
-                    logger.error("Even plain text failed", channel_name=channel_name, part=part_index + 1, error=str(e))
+                except Exception as e2:
+                    logger.error("Both HTML and plain text formatting failed", error=str(e2))
+                    part_success = False
             
             if part_success:
                 success = True
-            else:
-                logger.error("Failed to send part", part=part_index + 1, total_parts=total_parts, channel_name=channel_name)
-                break  # Stop sending remaining parts if one fails
             
             # Small delay between parts to avoid rate limiting
             if part_index < total_parts - 1:
@@ -199,4 +209,6 @@ class TelegramService:
         if success:
             logger.info("Successfully sent notification", channel_name=channel_name)
         else:
-            logger.error("All formatting attempts failed", channel_name=channel_name)
+            logger.error("Failed to send any message parts", channel_name=channel_name)
+        
+        return success

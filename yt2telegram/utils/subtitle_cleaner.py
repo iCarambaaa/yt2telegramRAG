@@ -49,6 +49,9 @@ class SubtitleCleaner:
                 # Remove HTML tags and timing info
                 line = re.sub(r'<[^>]*>', '', line)
                 
+                # Decode HTML entities
+                line = self._decode_html_entities(line)
+                
                 # Remove music symbols and sound effects
                 line = re.sub(r'[♪♫♬♩🎵🎶]', '', line)
                 line = re.sub(r'\[.*?\]', '', line)  # Remove [sound effects]
@@ -68,6 +71,7 @@ class SubtitleCleaner:
         final_text = self._deduplicate_subtitle_blocks(subtitle_blocks)
         
         # Final cleanup
+        final_text = self._decode_html_entities(final_text)  # Final HTML entity cleanup
         final_text = re.sub(r'\s+', ' ', final_text)  # Normalize whitespace
         final_text = re.sub(r'(\w)([.!?])(\w)', r'\1\2 \3', final_text)  # Fix punctuation spacing
         final_text = final_text.strip()
@@ -111,6 +115,42 @@ class SubtitleCleaner:
                     result_words.extend(block_words)
         
         return ' '.join(result_words)
+
+    def _decode_html_entities(self, text: str) -> str:
+        """Decode common HTML entities found in subtitles"""
+        # Common HTML entities in YouTube subtitles
+        html_entities = {
+            '&nbsp;': ' ',
+            '&amp;': '&',
+            '&lt;': '<',
+            '&gt;': '>',
+            '&quot;': '"',
+            '&apos;': "'",
+            '&#39;': "'",
+            '&#x27;': "'",
+            '&#x2F;': '/',
+            '&#x60;': '`',
+            '&#x3D;': '=',
+            '&hellip;': '...',
+            '&mdash;': '—',
+            '&ndash;': '–',
+            '&rsquo;': "'",
+            '&lsquo;': "'",
+            '&rdquo;': '"',
+            '&ldquo;': '"',
+        }
+        
+        # Replace HTML entities
+        for entity, replacement in html_entities.items():
+            text = text.replace(entity, replacement)
+        
+        # Handle numeric entities (&#123; format)
+        text = re.sub(r'&#(\d+);', lambda m: chr(int(m.group(1))), text)
+        
+        # Handle hex entities (&#x1F; format)
+        text = re.sub(r'&#x([0-9A-Fa-f]+);', lambda m: chr(int(m.group(1), 16)), text)
+        
+        return text
 
     def process_subtitle_file(self, file_path: str) -> str:
         """Process subtitle file with basic VTT cleaning only"""
