@@ -1,5 +1,6 @@
 import os
 import time
+import json
 from typing import Dict, Optional, Tuple
 from pathlib import Path
 
@@ -125,12 +126,64 @@ Create a comprehensive final summary that combines the best insights from both s
         else:
             return f"{self.channel_name} - Engaging content creator with unique voice and perspective"
 
+    def _calculate_cost_estimate(self, usage_data: dict) -> float:
+        """Calculate estimated cost based on token usage and model pricing"""
+        # Basic cost estimation - these are rough estimates and should be updated with actual pricing
+        model_costs = {
+            # OpenAI models (per 1K tokens)
+            'gpt-4o': {'input': 0.0025, 'output': 0.01},
+            'gpt-4o-mini': {'input': 0.00015, 'output': 0.0006},
+            'gpt-4': {'input': 0.03, 'output': 0.06},
+            'gpt-3.5-turbo': {'input': 0.0015, 'output': 0.002},
+            
+            # Anthropic models (per 1K tokens)
+            'anthropic/claude-3-opus': {'input': 0.015, 'output': 0.075},
+            'anthropic/claude-3-sonnet': {'input': 0.003, 'output': 0.015},
+            'anthropic/claude-3-haiku': {'input': 0.00025, 'output': 0.00125},
+            
+            # Default fallback pricing
+            'default': {'input': 0.001, 'output': 0.002}
+        }
+        
+        total_cost = 0.0
+        
+        for model_type, usage_info in usage_data.items():
+            if not usage_info or 'total_tokens' not in usage_info:
+                continue
+                
+            model_name = getattr(self, f"{model_type}_model", "default")
+            pricing = model_costs.get(model_name, model_costs['default'])
+            
+            # Use prompt/completion tokens if available, otherwise estimate 70/30 split
+            if 'prompt_tokens' in usage_info and 'completion_tokens' in usage_info:
+                input_tokens = usage_info['prompt_tokens']
+                output_tokens = usage_info['completion_tokens']
+            else:
+                total_tokens = usage_info['total_tokens']
+                input_tokens = int(total_tokens * 0.7)  # Estimate 70% input
+                output_tokens = int(total_tokens * 0.3)  # Estimate 30% output
+            
+            # Calculate cost (pricing is per 1K tokens)
+            input_cost = (input_tokens / 1000) * pricing['input']
+            output_cost = (output_tokens / 1000) * pricing['output']
+            model_cost = input_cost + output_cost
+            
+            total_cost += model_cost
+            
+            logger.debug("Cost calculation", 
+                        model=model_name,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        model_cost=round(model_cost, 6))
+        
+        return round(total_cost, 6)
+
     @api_retry
-    def _generate_single_summary(self, content: str, model: str, summary_type: str = "summary") -> str:
+    def _generate_single_summary(self, content: str, model: str, summary_type: str = "summary") -> tuple[str, dict]:
         """Generate a single summary using specified model"""
         if not content:
             logger.warning("Empty content provided for summarization")
-            return "No content to summarize"
+            return "No content to summarize", {}
 
         # Truncate content if too long
         max_content_chars = 50000
@@ -159,20 +212,30 @@ Create a comprehensive final summary that combines the best insights from both s
         
         summary = response.choices[0].message.content.strip()
         
+        # Extract usage information
+        usage_info = {}
+        if hasattr(response, 'usage') and response.usage:
+            usage_info = {
+                'prompt_tokens': response.usage.prompt_tokens,
+                'completion_tokens': response.usage.completion_tokens,
+                'total_tokens': response.usage.total_tokens
+            }
+        
         logger.info("Generated summary", 
                    summary_length=len(summary), 
                    model=model,
                    summary_type=summary_type,
+                   usage_info=usage_info,
                    preview=summary[:200])
         
         if not summary:
             logger.warning("LLM returned empty summary", model=model)
-            return f"Summary generation failed - empty response from {model}"
+            return f"Summary generation failed - empty response from {model}", usage_info
         
-        return summary
+        return summary, usage_info
 
     @api_retry
-    def _synthesize_summaries(self, summary_a: str, summary_b: str, original_content: str) -> str:
+    def _synthesize_summaries(self, summary_a: str, summary_b: str, original_content: str) -> tuple[str, dict]:
         """Synthesize two summaries into a final enhanced summary"""
         logger.info("Synthesizing summaries", 
                    summary_a_length=len(summary_a),
@@ -201,12 +264,22 @@ Create a comprehensive final summary that combines the best insights from both s
         
         synthesis = response.choices[0].message.content.strip()
         
+        # Extract usage information
+        usage_info = {}
+        if hasattr(response, 'usage') and response.usage:
+            usage_info = {
+                'prompt_tokens': response.usage.prompt_tokens,
+                'completion_tokens': response.usage.completion_tokens,
+                'total_tokens': response.usage.total_tokens
+            }
+        
         logger.info("Generated synthesis", 
                    synthesis_length=len(synthesis),
                    model=self.synthesis_model,
+                   usage_info=usage_info,
                    preview=synthesis[:200])
         
-        return synthesis
+        return synthesis, usage_info
 
     def summarize(self, content: str) -> str:
         """Generate multi-model enhanced summary (backward compatible)"""
@@ -232,6 +305,8 @@ Create a comprehensive final summary that combines the best insights from both s
             'cost_estimate': 0.0
         }
         
+        usage_data = {}
+        
         try:
             # Estimate token count (rough approximation)
             estimated_tokens = len(content) // 4
@@ -247,14 +322,19 @@ Create a comprehensive final summary that combines the best insights from both s
                 result['summarization_method'] = 'fallback'
                 
                 if self.fallback_strategy == "primary_summary":
-                    fallback_summary = self._generate_single_summary(content, self.primary_model, "fallback_primary")
+                    fallback_summary, usage_info = self._generate_single_summary(content, self.primary_model, "fallback_primary")
                     result['final_summary'] = fallback_summary
                     result['primary_summary'] = fallback_summary
+                    usage_data['primary'] = usage_info
                 else:  # best_summary
-                    fallback_summary = self._generate_single_summary(content, self.synthesis_model, "fallback_best")
+                    fallback_summary, usage_info = self._generate_single_summary(content, self.synthesis_model, "fallback_best")
                     result['final_summary'] = fallback_summary
                     result['synthesis_summary'] = fallback_summary
+                    usage_data['synthesis'] = usage_info
                 
+                # Calculate cost and finalize result
+                result['cost_estimate'] = self._calculate_cost_estimate(usage_data)
+                result['token_usage_json'] = json.dumps(usage_data)
                 result['processing_time_seconds'] = time.time() - start_time
                 return result
             
@@ -264,26 +344,34 @@ Create a comprehensive final summary that combines the best insights from both s
                        secondary_model=self.secondary_model,
                        synthesis_model=self.synthesis_model)
             
-            primary_summary = self._generate_single_summary(content, self.primary_model, "primary")
+            primary_summary, primary_usage = self._generate_single_summary(content, self.primary_model, "primary")
             result['primary_summary'] = primary_summary
+            usage_data['primary'] = primary_usage
             
             # Generate secondary summary
-            secondary_summary = self._generate_single_summary(content, self.secondary_model, "secondary")
+            secondary_summary, secondary_usage = self._generate_single_summary(content, self.secondary_model, "secondary")
             result['secondary_summary'] = secondary_summary
+            usage_data['secondary'] = secondary_usage
             
             # Synthesize summaries
-            final_summary = self._synthesize_summaries(primary_summary, secondary_summary, content)
+            final_summary, synthesis_usage = self._synthesize_summaries(primary_summary, secondary_summary, content)
             result['synthesis_summary'] = final_summary
             result['final_summary'] = final_summary
+            usage_data['synthesis'] = synthesis_usage
             
             processing_time = time.time() - start_time
             result['processing_time_seconds'] = round(processing_time, 2)
+            
+            # Calculate total cost and store usage data
+            result['cost_estimate'] = self._calculate_cost_estimate(usage_data)
+            result['token_usage_json'] = json.dumps(usage_data)
             
             logger.info("Multi-model summarization completed",
                        processing_time_seconds=result['processing_time_seconds'],
                        primary_length=len(primary_summary),
                        secondary_length=len(secondary_summary),
-                       final_length=len(final_summary))
+                       final_length=len(final_summary),
+                       cost_estimate=result['cost_estimate'])
             
             return result
             
@@ -295,9 +383,19 @@ Create a comprehensive final summary that combines the best insights from both s
             # Fallback to single model
             result['fallback_used'] = True
             result['summarization_method'] = 'error_fallback'
-            fallback_summary = self._generate_single_summary(content, self.primary_model, "error_fallback")
-            result['final_summary'] = fallback_summary
-            result['primary_summary'] = fallback_summary
+            try:
+                fallback_summary, fallback_usage = self._generate_single_summary(content, self.primary_model, "error_fallback")
+                result['final_summary'] = fallback_summary
+                result['primary_summary'] = fallback_summary
+                usage_data['primary'] = fallback_usage
+                result['cost_estimate'] = self._calculate_cost_estimate(usage_data)
+                result['token_usage_json'] = json.dumps(usage_data)
+            except Exception as fallback_error:
+                logger.error("Fallback summarization also failed", error=str(fallback_error))
+                result['final_summary'] = "Summary generation failed due to errors"
+                result['cost_estimate'] = 0.0
+                result['token_usage_json'] = '{}'
+            
             result['processing_time_seconds'] = time.time() - start_time
             
             return result
