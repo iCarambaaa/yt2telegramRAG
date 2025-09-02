@@ -48,7 +48,7 @@ def process_channel(config: ChannelConfig) -> bool:
                        primary_model=multi_model_config.get('primary_model'),
                        secondary_model=multi_model_config.get('secondary_model'),
                        synthesis_model=multi_model_config.get('synthesis_model'))
-            llm_service = MultiModelLLMService(llm_config=config.llm_config)
+            llm_service = MultiModelLLMService(llm_config=config.llm_config, channel_name=config.name)
         else:
             logger.info("Initializing single-model LLM service", 
                        model=config.llm_config.get('llm_model'))

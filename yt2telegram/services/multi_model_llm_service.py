@@ -12,8 +12,9 @@ from ..utils.logging_config import LoggerFactory
 logger = LoggerFactory.create_logger(__name__)
 
 class MultiModelLLMService:
-    def __init__(self, llm_config: Dict):
+    def __init__(self, llm_config: Dict, channel_name: Optional[str] = None):
         self.llm_config = llm_config
+        self.channel_name = channel_name
         
         # Check if multi-model is enabled
         multi_model_config = llm_config.get('multi_model', {})
@@ -34,7 +35,8 @@ class MultiModelLLMService:
         logger.info("MultiModelLLMService initialized", 
                    primary_model=self.primary_model,
                    secondary_model=self.secondary_model,
-                   synthesis_model=self.synthesis_model)
+                   synthesis_model=self.synthesis_model,
+                   channel_name=self.channel_name)
 
     def _init_base_config(self, llm_config: Dict):
         """Initialize base LLM configuration"""
@@ -103,6 +105,26 @@ Create a comprehensive final summary that combines the best insights from both s
         """Initialize OpenAI clients"""
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
+    def _get_creator_context(self) -> str:
+        """Get creator context based on channel name"""
+        if not self.channel_name:
+            return "Generic content creator with engaging, informative style"
+        
+        channel_lower = self.channel_name.lower()
+        
+        if "twominutepapers" in channel_lower or "two minute papers" in channel_lower:
+            return "Two Minute Papers - Dr. Károly Zsolnai-Fehér's enthusiastic, technical AI research summaries"
+        elif "david" in channel_lower and "ondrej" in channel_lower:
+            return "David Ondrej - Raw, unedited, documentary-like tech tutorials with entrepreneurial mindset"
+        elif "isaac" in channel_lower and "arthur" in channel_lower:
+            return "Isaac Arthur - Grand cosmic storytelling about space technology and megastructures"
+        elif "robyn" in channel_lower:
+            return "RobynHD - Sharp, no-nonsense crypto market analysis with insider perspective"
+        elif "ivan" in channel_lower and "yakovina" in channel_lower:
+            return "Ivan Yakovina - Geopolitical analysis with insider perspective and strategic insights"
+        else:
+            return f"{self.channel_name} - Engaging content creator with unique voice and perspective"
+
     @api_retry
     def _generate_single_summary(self, content: str, model: str, summary_type: str = "summary") -> str:
         """Generate a single summary using specified model"""
@@ -164,7 +186,7 @@ Create a comprehensive final summary that combines the best insights from both s
             original_content=original_content[:10000],  # Limit original content for synthesis
             model_a=self.primary_model,
             model_b=self.secondary_model,
-            creator_context="Two Minute Papers - Dr. Károly Zsolnai-Fehér's enthusiastic, technical AI research summaries"
+            creator_context=self._get_creator_context()
         )
 
         response = self.client.chat.completions.create(
