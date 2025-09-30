@@ -37,6 +37,16 @@ llm_config:
   # Custom prompt template for this channel's video summaries.
   # The '{content}' placeholder will be replaced by the cleaned video subtitles.
   llm_prompt_template_path: "yt2telegram/prompts/example_summary.md"
+  
+  # Creator context for maintaining voice and style consistency in AI summaries
+  # This replaces hardcoded channel-specific logic with configuration-driven approach
+  creator_context: "Example Channel - Educational content creator with clear explanations and engaging presentation style"
+  
+  # Message formatting configuration (future enhancement)
+  # Currently uses generic formatting, but could be extended to support:
+  # message_header: "📺 New Video from {channel_name}"
+  # message_footer: ""  # Optional hashtags or additional info
+  # header_emoji: "📺"  # Custom emoji for this channel
 
 # Telegram Bot(s) Configuration for Notifications
 # A channel can have multiple bots, each sending to a different chat_id.

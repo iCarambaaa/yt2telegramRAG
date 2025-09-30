@@ -6,6 +6,11 @@ from .logging_config import LoggerFactory
 
 logger = LoggerFactory.create_logger(__name__)
 
+# @agent:service-type infrastructure
+# @agent:scalability stateless
+# @agent:persistence none
+# @agent:priority critical
+# @agent:dependencies logging,time_delays
 def retry(
     attempts: int = 3,
     delay: float = 1.0,
@@ -13,21 +18,62 @@ def retry(
     exceptions: Union[Type[Exception], Tuple[Type[Exception], ...]] = Exception,
     logger_name: str = None
 ):
-    """
-    Retry decorator with configurable parameters
+    """Advanced retry decorator with exponential backoff and comprehensive error handling.
+    
+    Provides robust retry functionality for unreliable operations like API calls,
+    network requests, and external service integrations. Implements configurable
+    exponential backoff, selective exception handling, and detailed logging
+    for production debugging and monitoring.
+    
+    Intent: Make unreliable operations reliable through intelligent retry strategies
+    Critical: Retry logic is fundamental to system resilience - used throughout codebase
+    
+    AI-GUIDANCE:
+    - Never modify retry parameters without understanding impact on dependent services
+    - Preserve exponential backoff algorithm - prevents thundering herd problems
+    - Always log retry attempts for debugging and monitoring
+    - Use specific exception types rather than catching all exceptions
+    - Consider rate limiting implications when setting retry parameters
+    
+    Decision Logic:
+    1. Execute function and capture any exceptions
+    2. If success → return result immediately
+    3. If exception matches retry criteria → wait and retry
+    4. Apply exponential backoff between attempts
+    5. After max attempts → raise last exception with context
+    
+    AI-DECISION: Retry strategy selection
+    Criteria:
+    - Network errors → retry with exponential backoff
+    - Authentication errors → don't retry (fail fast)
+    - Rate limiting → retry with longer delays
+    - Permanent errors → don't retry (fail fast)
     
     Args:
-        attempts: Number of retry attempts (default: 3)
-        delay: Initial delay between retries in seconds (default: 1.0)
-        backoff: Multiplier for delay after each attempt (default: 1.0 = no backoff)
-        exceptions: Exception types to catch and retry (default: Exception)
-        logger_name: Custom logger name (default: uses function's module logger)
+        attempts (int): Maximum retry attempts including initial try (default: 3)
+        delay (float): Initial delay between retries in seconds (default: 1.0)
+        backoff (float): Multiplier for delay after each attempt (default: 1.0)
+        exceptions (Union[Type[Exception], Tuple]): Exception types to retry on
+        logger_name (str): Custom logger name for retry events
     
+    Returns:
+        Callable: Decorated function with retry capability
+        
     Example:
-        @retry(attempts=3, delay=2, backoff=1.5)
-        def risky_operation():
-            # This will retry up to 3 times with delays: 2s, 3s, 4.5s
-            pass
+        >>> @retry(attempts=3, delay=2, backoff=1.5, exceptions=(requests.RequestException,))
+        ... def api_call():
+        ...     return requests.get("https://api.example.com/data")
+        
+    Performance:
+        - No overhead on successful first attempt
+        - Exponential backoff prevents system overload
+        - Total retry time: sum of delays (e.g., 2s + 3s + 4.5s = 9.5s max)
+        
+    AI-NOTE: 
+        - Exponential backoff prevents thundering herd problems
+        - Specific exception handling prevents infinite retries on permanent failures
+        - Logging provides visibility into retry patterns for optimization
+        - Backoff multiplier should typically be 1.5-2.0 for optimal spacing
     """
     def decorator(func: Callable) -> Callable:
         @wraps(func)

@@ -9,10 +9,55 @@ from ..utils.logging_config import LoggerFactory
 
 logger = LoggerFactory.create_logger(__name__)
 
+# @agent:service-type business-logic
+# @agent:scalability stateless
+# @agent:persistence none
+# @agent:priority critical
+# @agent:dependencies OpenAI_API,PromptTemplates,ConfigurationFiles
 class LLMService:
+    """Base LLM service for single-model AI summarization with flexible provider support.
+    
+    Provides standardized interface for AI summarization using various LLM providers
+    (OpenAI, Anthropic, OpenRouter, etc.). Handles authentication, prompt templating,
+    and error recovery for reliable AI operations. Serves as base class for
+    MultiModelLLMService and standalone single-model processing.
+    
+    Architecture: Stateless service with configurable LLM provider endpoints
+    Critical Path: AI summarization - failures prevent content processing
+    Failure Mode: Graceful error handling with detailed logging for debugging
+    
+    AI-GUIDANCE:
+    - Never log API keys or sensitive authentication data
+    - Preserve prompt template formatting - affects AI output quality
+    - Always validate configuration before making API calls
+    - Implement proper token usage tracking for cost monitoring
+    - Use consistent temperature and max_tokens for reproducible results
+    
+    Attributes:
+        api_key (str): LLM provider API key from environment
+        model (str): Model identifier (e.g., 'gpt-4o-mini', 'claude-3-haiku')
+        base_url (str): API endpoint URL for LLM provider
+        prompt_template (str): Template for formatting summarization prompts
+        client (OpenAI): Configured API client for LLM communication
+        
+    Example:
+        >>> config = {"llm_model": "gpt-4o-mini", "llm_api_key_env": "OPENAI_API_KEY"}
+        >>> service = LLMService(config)
+        >>> summary = service.summarize("Video content here...")
+        
+    Note:
+        Thread-safe for concurrent summarization. Supports OpenAI-compatible APIs.
+        Automatic retry logic through @api_retry decorator.
+    """
+    
     def __init__(self, llm_config: Dict):
 
-        # Get API key
+        # Security boundary: API key validation and secure retrieval
+        # @security:critical - API key must never be logged or exposed
+        # AI-DECISION: Environment variable vs direct configuration
+        # Criteria: Environment variable → secure production deployment
+        #          Direct config → development/testing only
+        #          Missing key → fail fast with clear error message
         api_key_env_var = llm_config.get('llm_api_key_env', 'LLM_PROVIDER_API_KEY')
         self.api_key = os.getenv(api_key_env_var)
         if not self.api_key:
