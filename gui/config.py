@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 """Configuration classes for the GUI application."""
 import os
 from pathlib import Path
@@ -57,3 +58,64 @@ config = {
     'testing': TestingConfig,
     'default': DevelopmentConfig
 }
+=======
+"""
+Configuration management for the Unified GUI Platform.
+
+SECURITY: Environment-based configuration with secure defaults
+"""
+
+import os
+from typing import Optional
+from pydantic import BaseSettings
+
+
+class Settings(BaseSettings):
+    """Application settings with environment variable support."""
+    
+    # Application settings
+    app_name: str = "Unified GUI Platform"
+    app_version: str = "1.0.0"
+    debug: bool = False
+    
+    # Server settings
+    host: str = "127.0.0.1"
+    port: int = 8000
+    reload: bool = True
+    
+    # Database settings
+    database_url: str = "sqlite:///gui/data/gui_main.db"
+    
+    # Security settings
+    jwt_secret_key: Optional[str] = None
+    jwt_algorithm: str = "HS256"
+    jwt_expiration_hours: int = 24
+    
+    # CORS settings
+    cors_origins: list = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    
+    # Logging settings
+    log_level: str = "INFO"
+    
+    # Integration settings
+    telegram_bot_token: Optional[str] = None
+    telegram_chat_id: Optional[str] = None
+    
+    # LLM settings
+    llm_provider_api_key: Optional[str] = None
+    model: str = "gpt-4o-mini"
+    base_url: Optional[str] = None
+    
+    class Config:
+        env_file = ".env"
+        case_sensitive = False
+
+
+# Global settings instance
+settings = Settings()
+
+
+def get_settings() -> Settings:
+    """Get application settings."""
+    return settings
+>>>>>>> Stashed changes
