@@ -13,7 +13,7 @@ import jwt
 from datetime import datetime, timedelta
 import secrets
 
-from ...utils.logging_config import setup_logging
+from utils.logging_config import setup_logging
 
 logger = setup_logging(__name__)
 
@@ -185,7 +185,7 @@ async def refresh_token(token_data: Dict[str, Any] = Depends(verify_token)):
 # Dependency for protected routes
 def get_current_user_dependency():
     """Dependency to get current user for protected routes."""
-    return Depends(verify_token)
+    return verify_token
 
 
 def require_permission(permission: str):

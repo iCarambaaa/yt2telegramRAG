@@ -1,68 +1,7 @@
-<<<<<<< Updated upstream
-"""Configuration classes for the GUI application."""
-import os
-from pathlib import Path
-
-class Config:
-    """Base configuration class."""
-    SECRET_KEY = os.environ.get('GUI_SECRET_KEY') or 'dev-secret-key-change-in-production'
-    
-    # Flask settings
-    DEBUG = False
-    TESTING = False
-    
-    # Application settings
-    HOST = os.environ.get('GUI_HOST', 'localhost')
-    PORT = int(os.environ.get('GUI_PORT', 5000))
-    
-    # Project paths
-    PROJECT_ROOT = Path(__file__).parent.parent
-    CHANNELS_DIR = PROJECT_ROOT / 'yt2telegram' / 'channels'
-    PROMPTS_DIR = PROJECT_ROOT / 'yt2telegram' / 'prompts'
-    DOWNLOADS_DIR = PROJECT_ROOT / 'downloads'
-    
-    # Database settings
-    DATABASE_TIMEOUT = 30.0
-    MAX_DATABASE_CONNECTIONS = 10
-    
-    # WebSocket settings
-    SOCKETIO_ASYNC_MODE = 'threading'
-    SOCKETIO_CORS_ALLOWED_ORIGINS = ['http://localhost:5000']
-
-class DevelopmentConfig(Config):
-    """Development configuration."""
-    DEBUG = True
-    SOCKETIO_LOGGER = True
-    SOCKETIO_ENGINEIO_LOGGER = True
-
-class ProductionConfig(Config):
-    """Production configuration."""
-    DEBUG = False
-    SECRET_KEY = os.environ.get('GUI_SECRET_KEY')
-    
-    # Security settings
-    SESSION_COOKIE_SECURE = True
-    SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'Lax'
-
-class TestingConfig(Config):
-    """Testing configuration."""
-    TESTING = True
-    DEBUG = True
-    WTF_CSRF_ENABLED = False
-
-# Configuration mapping
-config = {
-    'development': DevelopmentConfig,
-    'production': ProductionConfig,
-    'testing': TestingConfig,
-    'default': DevelopmentConfig
-}
-=======
 """
-Configuration management for the Unified GUI Platform.
+Configuration settings for the Unified GUI Platform.
 
-SECURITY: Environment-based configuration with secure defaults
+CRITICAL: Core configuration management
 """
 
 import os
@@ -73,49 +12,56 @@ from pydantic import BaseSettings
 class Settings(BaseSettings):
     """Application settings with environment variable support."""
     
-    # Application settings
-    app_name: str = "Unified GUI Platform"
-    app_version: str = "1.0.0"
-    debug: bool = False
-    
-    # Server settings
+    # Server configuration
     host: str = "127.0.0.1"
     port: int = 8000
+    debug: bool = True
     reload: bool = True
+    log_level: str = "INFO"
     
-    # Database settings
-    database_url: str = "sqlite:///gui/data/gui_main.db"
+    # Database configuration
+    database_url: str = "sqlite:///gui/data/gui.db"
     
-    # Security settings
-    jwt_secret_key: Optional[str] = None
+    # Security
+    jwt_secret_key: str = "your-secret-key-change-in-production"
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 24
     
     # CORS settings
-    cors_origins: list = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    cors_origins: list = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8080",
+        "https://localhost:3000"
+    ]
     
-    # Logging settings
-    log_level: str = "INFO"
+    # Rate limiting
+    rate_limit_requests_per_minute: int = 120
     
-    # Integration settings
+    # WebSocket settings
+    websocket_ping_interval: int = 30
+    websocket_ping_timeout: int = 10
+    
+    # Telegram integration (optional)
     telegram_bot_token: Optional[str] = None
     telegram_chat_id: Optional[str] = None
     
-    # LLM settings
-    llm_provider_api_key: Optional[str] = None
-    model: str = "gpt-4o-mini"
-    base_url: Optional[str] = None
+    # File paths
+    data_directory: str = "gui/data"
+    static_directory: str = "gui/static"
     
     class Config:
         env_file = ".env"
-        case_sensitive = False
+        env_prefix = "GUI_"
 
 
 # Global settings instance
-settings = Settings()
+_settings = None
 
 
 def get_settings() -> Settings:
-    """Get application settings."""
-    return settings
->>>>>>> Stashed changes
+    """Get application settings singleton."""
+    global _settings
+    if _settings is None:
+        _settings = Settings()
+    return _settings

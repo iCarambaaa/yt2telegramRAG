@@ -156,6 +156,20 @@ class WebSocketManager:
                 # Broadcast message to all clients in same groups
                 await self.broadcast_from_client(client_id, data.get("payload", {}))
             
+            elif message_type == "qna_question":
+                # Handle Q&A question
+                await self.handle_qna_question(client_id, data.get("data", {}))
+            
+            elif message_type == "join_qna_room":
+                # Join Q&A room for real-time updates
+                channel = data.get("data", {}).get("channel", "all")
+                room = f"qna_{channel}"
+                await self.add_to_group(client_id, room)
+                await self.send_to_client(client_id, {
+                    "type": "qna_room_joined",
+                    "data": {"room": room, "channel": channel}
+                })
+            
             else:
                 logger.warning("Unknown message type", client_id=client_id, message_type=message_type)
         
@@ -347,3 +361,106 @@ class WebSocketManager:
             info["queued_messages"] = len(self.message_queues.get(client_id, []))
             return info
         return None
+    
+    async def handle_qna_question(self, client_id: str, question_data: Dict[str, Any]):
+        """Handle Q&A question via WebSocket."""
+        try:
+            question = question_data.get("question", "")
+            channel_context = question_data.get("channelContext")
+            conversation_id = question_data.get("conversationId", f"conv_{int(datetime.utcnow().timestamp())}")
+            
+            if not question.strip():
+                await self.send_to_client(client_id, {
+                    "type": "qna_error",
+                    "data": {"message": "Question cannot be empty"}
+                })
+                return
+            
+            # Send processing acknowledgment
+            await self.send_to_client(client_id, {
+                "type": "qna_processing",
+                "data": {
+                    "question": question,
+                    "conversationId": conversation_id
+                }
+            })
+            
+            # Process question (this would integrate with the actual QnA service)
+            response = await self._process_qna_question_ws(question, channel_context, conversation_id)
+            
+            # Send response
+            await self.send_to_client(client_id, {
+                "type": "qna_response",
+                "data": response
+            })
+            
+            # Broadcast activity to Q&A room
+            room = f"qna_{channel_context or 'all'}"
+            await self.broadcast_to_group(room, {
+                "type": "qna_activity",
+                "data": {
+                    "question": question,
+                    "channel": channel_context,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "user": client_id
+                }
+            }, exclude_client=client_id)
+            
+        except Exception as e:
+            logger.error("Error handling Q&A question via WebSocket", client_id=client_id, error=str(e))
+            await self.send_to_client(client_id, {
+                "type": "qna_error",
+                "data": {"message": "Failed to process question"}
+            })
+    
+    async def _process_qna_question_ws(self, question: str, channel_context: Optional[str], 
+                                      conversation_id: str) -> Dict[str, Any]:
+        """Process Q&A question for WebSocket response."""
+        try:
+            # This would integrate with the actual Q&A processing logic
+            # For now, simulate processing with a basic response
+            
+            # Simulate processing time
+            await asyncio.sleep(1)
+            
+            # Basic response structure
+            response = {
+                "id": f"qna_{int(datetime.utcnow().timestamp())}",
+                "question": question,
+                "answer": f"This is a WebSocket response to your question: '{question}'. The full Q&A integration is being implemented.",
+                "timestamp": datetime.utcnow().isoformat(),
+                "contextVideos": [
+                    {
+                        "id": "sample_video_1",
+                        "title": "Sample Video Title",
+                        "url": "https://youtube.com/watch?v=sample",
+                        "relevanceScore": 0.8
+                    }
+                ],
+                "channelContext": channel_context,
+                "confidenceScore": 0.75,
+                "followUpSuggestions": [
+                    "Can you elaborate on this topic?",
+                    "What are the practical applications?",
+                    "Are there any related concepts?"
+                ],
+                "conversationId": conversation_id,
+                "responseTime": 1.0
+            }
+            
+            return response
+            
+        except Exception as e:
+            logger.error("Error processing Q&A question", error=str(e))
+            return {
+                "id": f"error_{int(datetime.utcnow().timestamp())}",
+                "question": question,
+                "answer": "I encountered an error processing your question. Please try again.",
+                "timestamp": datetime.utcnow().isoformat(),
+                "contextVideos": [],
+                "channelContext": channel_context,
+                "confidenceScore": 0.0,
+                "followUpSuggestions": [],
+                "conversationId": conversation_id,
+                "responseTime": 0.0
+            }

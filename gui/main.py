@@ -13,22 +13,22 @@ from contextlib import asynccontextmanager
 import logging
 from typing import Dict, List
 
-from .api.router_registry import create_enhanced_routers, registry_router
-from .api.versioning import compatibility_router
-from .core.websocket_manager import WebSocketManager
-from .core.database_manager import DatabaseManager
-from .core.connection_pool import EnhancedDatabaseManager
-from .core.middleware import (
+from api.router_registry import create_enhanced_routers, registry_router
+from api.versioning import compatibility_router
+from core.websocket_manager import WebSocketManager
+from core.database_manager import DatabaseManager
+from core.connection_pool import EnhancedDatabaseManager
+from core.middleware import (
     AuthenticationMiddleware, 
     RequestLoggingMiddleware, 
     RateLimitingMiddleware,
     ErrorHandlingMiddleware
 )
-from .services.message_mirror_service import MessageMirrorService
-from .services.enhanced_telegram_service import EnhancedTelegramService
-from .services.telegram_qna_handler import TelegramQnAHandler
-from .core.message_queue_manager import MessageQueueManager
-from .utils.logging_config import setup_logging
+from services.message_mirror_service import MessageMirrorService
+from services.enhanced_telegram_service import EnhancedTelegramService
+from services.telegram_qna_handler import TelegramQnAHandler
+from core.message_queue_manager import MessageQueueManager
+from utils.logging_config import setup_logging
 
 # Initialize logging
 logger = setup_logging(__name__)
@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
         logger.info("Message mirror service initialized successfully")
         
         # Initialize message service in API routes
-        from .api.routers.messages import initialize_message_service
+        from api.routers.messages import initialize_message_service
         initialize_message_service(database_manager, websocket_manager)
         
         # Initialize enhanced Telegram service
@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
         logger.info("Telegram QnA handler initialized successfully")
         
         # Add authentication middleware after database is initialized
-        from .api.routers.auth import JWT_SECRET_KEY, JWT_ALGORITHM
+        from api.routers.auth import JWT_SECRET_KEY, JWT_ALGORITHM
         app.add_middleware(AuthenticationMiddleware, 
                           jwt_secret=JWT_SECRET_KEY, 
                           jwt_algorithm=JWT_ALGORITHM)

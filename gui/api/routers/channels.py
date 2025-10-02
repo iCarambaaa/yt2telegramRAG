@@ -13,11 +13,15 @@ import os
 from pathlib import Path
 
 from .auth import get_current_user_dependency, require_permission
-from ...utils.logging_config import setup_logging
+from utils.logging_config import setup_logging
+from services.channel_database_service import ChannelDatabaseService
 
 logger = setup_logging(__name__)
 
 router = APIRouter()
+
+# Initialize channel database service
+channel_db_service = ChannelDatabaseService()
 
 
 class ChannelConfig(BaseModel):
@@ -669,3 +673,145 @@ async def get_available_models(current_user: Dict = Depends(get_current_user_dep
     logger.info("Retrieved available models", count=len(models), user=current_user["username"])
     
     return models
+@
+router.get("/database-channels")
+async def get_database_channels(
+    current_user: Dict = Depends(get_current_user_dependency())
+):
+    """Get channels from existing databases."""
+    try:
+        channels = channel_db_service.get_available_channels()
+        
+        logger.info("Retrieved database channels", 
+                   count=len(channels),
+                   user=current_user["username"])
+        
+        return {
+            "channels": channels,
+            "total": len(channels)
+        }
+        
+    except Exception as e:
+        logger.error("Failed to get database channels", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve database channels"
+        )
+
+
+@router.get("/database-channels/{channel_name}/videos")
+async def get_channel_videos(
+    channel_name: str,
+    limit: int = 50,
+    offset: int = 0,
+    current_user: Dict = Depends(get_current_user_dependency())
+):
+    """Get videos for a specific channel from database."""
+    try:
+        videos = channel_db_service.get_channel_videos(channel_name, limit, offset)
+        
+        logger.info("Retrieved channel videos", 
+                   channel=channel_name,
+                   count=len(videos),
+                   user=current_user["username"])
+        
+        return {
+            "videos": videos,
+            "channel": channel_name,
+            "limit": limit,
+            "offset": offset
+        }
+        
+    except Exception as e:
+        logger.error("Failed to get channel videos", 
+                    channel=channel_name, 
+                    error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve channel videos"
+        )
+
+
+@router.get("/database-channels/{channel_name}/analytics")
+async def get_channel_analytics(
+    channel_name: str,
+    days: int = 30,
+    current_user: Dict = Depends(get_current_user_dependency())
+):
+    """Get analytics for a specific channel."""
+    try:
+        analytics = channel_db_service.get_channel_analytics(channel_name, days)
+        
+        logger.info("Retrieved channel analytics", 
+                   channel=channel_name,
+                   days=days,
+                   user=current_user["username"])
+        
+        return analytics
+        
+    except Exception as e:
+        logger.error("Failed to get channel analytics", 
+                    channel=channel_name, 
+                    error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve channel analytics"
+        )
+
+
+@router.get("/database-channels/{channel_name}/videos/{video_id}")
+async def get_video_details(
+    channel_name: str,
+    video_id: str,
+    current_user: Dict = Depends(get_current_user_dependency())
+):
+    """Get detailed information for a specific video."""
+    try:
+        video_details = channel_db_service.get_video_details(channel_name, video_id)
+        
+        if not video_details:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video not found"
+            )
+        
+        logger.info("Retrieved video details", 
+                   channel=channel_name,
+                   video_id=video_id,
+                   user=current_user["username"])
+        
+        return video_details
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to get video details", 
+                    channel=channel_name,
+                    video_id=video_id,
+                    error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve video details"
+        )
+
+
+@router.get("/summary")
+async def get_channels_summary(
+    current_user: Dict = Depends(get_current_user_dependency())
+):
+    """Get summary of all channels and their data."""
+    try:
+        summary = channel_db_service.get_all_channels_summary()
+        
+        logger.info("Retrieved channels summary", 
+                   total_channels=summary.get("total_channels", 0),
+                   user=current_user["username"])
+        
+        return summary
+        
+    except Exception as e:
+        logger.error("Failed to get channels summary", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve channels summary"
+        )

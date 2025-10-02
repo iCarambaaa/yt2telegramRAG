@@ -39,8 +39,9 @@ export function Navigation() {
         <div className="container mx-auto px-4">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="h-8 w-32 bg-gray-200 animate-pulse rounded"></div>
+              <h1 className="text-xl font-semibold">Unified GUI Platform</h1>
             </div>
+            <div className="h-8 w-24 bg-gray-200 animate-pulse rounded"></div>
           </div>
         </div>
       </nav>

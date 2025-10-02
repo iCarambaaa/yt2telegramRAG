@@ -2,9 +2,9 @@ from fastapi import APIRouter, HTTPException, Request, Depends
 from typing import Dict, Any
 import logging
 
-from ...services.enhanced_telegram_service import EnhancedTelegramService
-from ...core.websocket_manager import WebSocketManager
-from ...utils.logging_config import LoggerFactory
+from services.enhanced_telegram_service import EnhancedTelegramService
+from core.websocket_manager import WebSocketManager
+from utils.logging_config import LoggerFactory
 
 logger = LoggerFactory.create_logger(__name__)
 
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/webhook/telegram", tags=["telegram"])
 
 async def get_telegram_service() -> EnhancedTelegramService:
     """Dependency to get Telegram service instance"""
-    from ...main import get_enhanced_telegram_service
+    from main import get_enhanced_telegram_service
     return get_enhanced_telegram_service()
 
 @router.post("/{chat_id}")

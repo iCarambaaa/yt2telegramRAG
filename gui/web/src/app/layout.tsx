@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/components/providers/auth-provider'
+import { ErrorBoundary } from '@/components/providers/error-boundary'
 import { Navigation } from '@/components/layout/navigation'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -21,15 +22,19 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <AuthProvider>
-          <div className="min-h-screen bg-background">
-            <Navigation />
-            <main className="container mx-auto px-4 py-6">
-              {children}
-            </main>
-          </div>
-        </AuthProvider>
+      <body className={inter.className} suppressHydrationWarning>
+        <ErrorBoundary>
+          <AuthProvider>
+            <div className="min-h-screen bg-background">
+              <Navigation />
+              <main className="container mx-auto px-4 py-6">
+                <ErrorBoundary>
+                  {children}
+                </ErrorBoundary>
+              </main>
+            </div>
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   )

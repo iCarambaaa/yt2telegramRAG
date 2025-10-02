@@ -11,7 +11,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from .auth import get_current_user_dependency, require_permission
-from ...utils.logging_config import setup_logging
+from utils.logging_config import setup_logging
 
 logger = setup_logging(__name__)
 

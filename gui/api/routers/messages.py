@@ -12,10 +12,10 @@ from datetime import datetime
 import json
 
 from .auth import get_current_user_dependency
-from ...utils.logging_config import setup_logging
-from ...services.message_mirror_service import MessageMirrorService
-from ...core.database_manager import DatabaseManager
-from ...core.websocket_manager import WebSocketManager
+from utils.logging_config import setup_logging
+from services.message_mirror_service import MessageMirrorService
+from core.database_manager import DatabaseManager
+from core.websocket_manager import WebSocketManager
 
 logger = setup_logging(__name__)
 

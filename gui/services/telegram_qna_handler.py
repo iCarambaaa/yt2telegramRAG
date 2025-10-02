@@ -127,20 +127,15 @@ class TelegramQnAHandler:
         """Process question through QnA system"""
         try:
             if not self.qna_service:
-                return None
+                # Try to use the existing QnA system directly
+                return await self._process_with_existing_qna(question, context)
             
-            # This would integrate with the existing QnA system
-            # For now, return a placeholder response
-            
-            # TODO: Integrate with actual QnA service
-            # response = await self.qna_service.process_question(
-            #     question=question,
-            #     user_id=user_id,
-            #     context=context
-            # )
-            
-            # Placeholder response
-            response = f"Thank you for your question: '{question}'. The QnA system integration is being implemented."
+            # Use configured QnA service
+            response = await self.qna_service.process_question(
+                question=question,
+                user_id=user_id,
+                context=context
+            )
             
             return response
         
@@ -148,6 +143,134 @@ class TelegramQnAHandler:
             logger.error("Error processing question through QnA service", 
                         question=question, error=str(e))
             return None
+    
+    async def _process_with_existing_qna(self, question: str, context: Dict[str, Any]) -> Optional[str]:
+        """Process question using the existing QnA system"""
+        try:
+            import os
+            import sqlite3
+            from typing import List, Dict, Any
+            
+            # Search for relevant content across available channels
+            search_results = []
+            
+            # Get available channel databases
+            downloads_dir = "yt2telegram/downloads"
+            if os.path.exists(downloads_dir):
+                for file in os.listdir(downloads_dir):
+                    if file.endswith('.db'):
+                        db_path = os.path.join(downloads_dir, file)
+                        try:
+                            results = self._search_channel_database(db_path, question)
+                            search_results.extend(results)
+                        except Exception as e:
+                            logger.warning(f"Failed to search {db_path}", error=str(e))
+            
+            if not search_results:
+                return "I couldn't find any relevant information to answer your question. Try asking about specific topics or videos."
+            
+            # Sort by relevance and generate response
+            search_results.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
+            top_results = search_results[:2]
+            
+            # Generate response
+            response_parts = []
+            for result in top_results:
+                if result['type'] == 'summary':
+                    response_parts.append(f"📺 *{result['title']}*\n{result['content'][:300]}...")
+                elif result['type'] == 'subtitle':
+                    timestamp = result.get('timestamp', 'N/A')
+                    response_parts.append(f"📺 *{result['title']}* (at {timestamp})\n{result['content'][:200]}...")
+            
+            if response_parts:
+                response = "\n\n".join(response_parts)
+                if len(top_results) < len(search_results):
+                    response += f"\n\n_Found {len(search_results)} total results. Showing top {len(top_results)}._"
+                return response
+            else:
+                return "I found some relevant videos but couldn't extract a clear answer. Please try rephrasing your question."
+        
+        except Exception as e:
+            logger.error("Error in existing QnA processing", error=str(e))
+            return None
+    
+    def _search_channel_database(self, db_path: str, query: str, limit: int = 3) -> List[Dict[str, Any]]:
+        """Search for content in a channel database"""
+        results = []
+        
+        try:
+            with sqlite3.connect(db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                
+                # Search in video summaries
+                cursor = conn.execute("""
+                    SELECT video_id, title, summary, upload_date, url
+                    FROM videos
+                    WHERE summary LIKE ? OR title LIKE ?
+                    ORDER BY upload_date DESC
+                    LIMIT ?
+                """, (f'%{query}%', f'%{query}%', limit))
+                
+                for row in cursor.fetchall():
+                    relevance_score = self._calculate_simple_relevance(query, row['title'], row['summary'])
+                    results.append({
+                        'video_id': row['video_id'],
+                        'title': row['title'],
+                        'content': row['summary'],
+                        'url': row['url'],
+                        'type': 'summary',
+                        'upload_date': row['upload_date'],
+                        'relevance_score': relevance_score
+                    })
+                
+                # Search in subtitles if available
+                try:
+                    cursor = conn.execute("""
+                        SELECT v.video_id, v.title, s.content, s.start_time, v.upload_date, v.url
+                        FROM videos v
+                        JOIN subtitles s ON v.video_id = s.video_id
+                        WHERE s.content LIKE ?
+                        ORDER BY v.upload_date DESC, s.start_time ASC
+                        LIMIT ?
+                    """, (f'%{query}%', limit))
+                    
+                    for row in cursor.fetchall():
+                        relevance_score = self._calculate_simple_relevance(query, row['title'], row['content'])
+                        results.append({
+                            'video_id': row['video_id'],
+                            'title': row['title'],
+                            'content': row['content'],
+                            'url': row['url'],
+                            'type': 'subtitle',
+                            'timestamp': row['start_time'],
+                            'upload_date': row['upload_date'],
+                            'relevance_score': relevance_score
+                        })
+                except sqlite3.OperationalError:
+                    # Subtitles table might not exist
+                    pass
+                    
+        except Exception as e:
+            logger.error(f"Error searching database {db_path}", error=str(e))
+        
+        return results
+    
+    def _calculate_simple_relevance(self, query: str, title: str, content: str) -> float:
+        """Calculate simple relevance score"""
+        query_words = query.lower().split()
+        title_lower = title.lower()
+        content_lower = content.lower()
+        
+        score = 0.0
+        total_words = len(query_words)
+        
+        for word in query_words:
+            if word in title_lower:
+                score += 0.4  # Title matches are more important
+            if word in content_lower:
+                score += 0.2
+        
+        return min(1.0, score / total_words) if total_words > 0 else 0.0
     
     def set_qna_service(self, qna_service):
         """Set the QnA service for processing questions"""
