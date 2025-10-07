@@ -1,5 +1,39 @@
 # Changelog
 
+## [2.4.0] - 2025-10-07
+
+### 💰 **Cost Tracking & Model Updates**
+- **Real cost tracking**: Actual costs from OpenRouter API responses stored in database
+- **Cost extraction**: Multi-location checking for OpenRouter cost data (usage.cost, x_openrouter.cost, headers)
+- **Cost aggregation**: Total costs calculated from all 3 API calls (primary + secondary + synthesis)
+- **Database storage**: `cost_estimate` field stores actual USD costs, `token_usage_json` stores detailed breakdown
+- **Analytics ready**: Cost data structured for GUI analytics dashboard
+
+### 🤖 **Model Configuration Updates**
+- **New primary model**: `z-ai/glm-4.6` (Zhipu AI's fast GLM model)
+- **New secondary model**: `anthropic/claude-3.5-haiku` (latest Claude Haiku)
+- **New synthesis model**: `mistralai/mistral-medium-3.1` (Mistral's medium-tier model)
+- **Diverse AI providers**: Three different providers (Zhipu, Anthropic, Mistral) for enhanced quality
+- **All channels updated**: 7 channel configs + .env file updated with new models
+
+### ⚙️ **Configuration Simplification**
+- **Removed cost thresholds**: No automatic fallback based on content length (50,000 char threshold removed)
+- **Boolean toggle**: Multi-model is now simple `enabled: true/false` setting
+- **Explicit control**: Users choose single vs multi-model mode directly
+- **No token estimation**: Removed complex token counting and threshold logic
+- **Cleaner configs**: Simplified YAML configuration files
+
+### 🐛 **Bug Fixes**
+- **Anton Petrov channel**: Fixed failed summarizations caused by old free model references
+- **Database cleanup**: Removed failed videos to allow reprocessing
+- **Model references**: Updated all hardcoded model references to new selections
+
+### 📚 **Documentation Updates**
+- **README updated**: New model configuration examples and cost tracking info
+- **COST_TRACKING_IMPLEMENTATION.md**: Detailed implementation documentation
+- **MODEL_UPDATE_SUMMARY.md**: Complete model change summary
+- **Configuration examples**: Updated with latest model selections
+
 ## [2.3.0] - 2025-02-09
 
 ### 🤖 **Multi-Model Summarization System**

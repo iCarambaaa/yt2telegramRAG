@@ -3,7 +3,8 @@
 Advanced automated content monitoring and summarization system that monitors YouTube channels, generates enhanced AI-powered summaries using multi-model approach, and provides interactive QnA with channel-specific RAG conversations.
 
 **Key Features:**
-- ✅ **Multi-Model Summarization** - Enhanced quality through dual-model approach with intelligent synthesis
+- ✅ **Multi-Model Summarization** - Enhanced quality through 3-stage pipeline with diverse AI providers
+- ✅ **Actual Cost Tracking** - Real-time cost monitoring from OpenRouter API responses
 - ✅ **Channel-Specific QnA** - RAG-powered conversations with individual channel databases
 - ✅ **Smart Channel Setup** - Automated channel analysis and configuration
 - ✅ **Style-Preserving Summaries** - Maintains each creator's unique voice and perspective  
@@ -133,18 +134,22 @@ db_path: "yt2telegram/downloads/your_channel.db"
 cookies_file: "COOKIES_FILE"
 max_videos_to_fetch: 3
 
-multi_model_config:
-  model_a:
-    llm_api_key_env: "OPENAI_API_KEY"
-    llm_model: "gpt-4o-mini"
-    llm_base_url: "https://api.openai.com/v1"
-    llm_prompt_template_path: "yt2telegram/prompts/your_prompt.md"
-  model_b:
-    llm_api_key_env: "ANTHROPIC_API_KEY"
-    llm_model: "claude-3-5-haiku-20241022"
-    llm_base_url: "https://api.anthropic.com"
-    llm_prompt_template_path: "yt2telegram/prompts/your_prompt.md"
-  synthesis_template_path: "yt2telegram/prompts/synthesis_template.md"
+llm_config:
+  llm_api_key_env: "LLM_PROVIDER_API_KEY"
+  llm_model: "z-ai/glm-4.6"
+  llm_base_url: "https://openrouter.ai/api/v1"
+  llm_prompt_template_path: "yt2telegram/prompts/your_prompt.md"
+  
+  creator_context: "Your Channel - Brief description of content style"
+  
+  # Multi-model configuration for enhanced summarization
+  multi_model:
+    enabled: true  # Set to false to use single-model processing
+    primary_model: "z-ai/glm-4.6"                    # Fast GLM-4.6 model
+    secondary_model: "anthropic/claude-3.5-haiku"    # Claude 3.5 Haiku for different perspective
+    synthesis_model: "mistralai/mistral-medium-3.1"  # Mistral Medium for high-quality synthesis
+    synthesis_prompt_template_path: "yt2telegram/prompts/synthesis_template.md"
+    fallback_strategy: "best_summary"                # Use best summary if synthesis fails
 
 telegram_bots:
   - name: "Your Bot"
@@ -160,16 +165,10 @@ subtitles: ["en"]
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_ID=your_chat_id
 
-# Primary LLM Provider (OpenRouter, OpenAI, etc.)
-LLM_PROVIDER_API_KEY=your_api_key
-MODEL=gpt-4o-mini
+# Primary LLM Provider (OpenRouter recommended for multi-model)
+LLM_PROVIDER_API_KEY=your_openrouter_api_key
+MODEL=z-ai/glm-4.6
 BASE_URL=https://openrouter.ai/api/v1
-
-# Multi-Model Support (Optional)
-OPENAI_API_KEY=your_openai_key
-ANTHROPIC_API_KEY=your_anthropic_key
-OPENAI_BASE_URL=https://api.openai.com/v1
-ANTHROPIC_BASE_URL=https://api.anthropic.com
 ```
 
 ---
@@ -194,7 +193,9 @@ The `COOKIES_FILE` is essential for accessing age-restricted or private YouTube 
 ## Key Features
 
 ### 🧠 **Advanced AI Summaries**
-- **Multi-model enhancement** - Dual-model approach with intelligent synthesis for superior quality
+- **3-stage multi-model pipeline** - Primary (GLM-4.6) → Secondary (Claude 3.5 Haiku) → Synthesis (Mistral Medium 3.1)
+- **Diverse AI perspectives** - Combines Zhipu AI, Anthropic, and Mistral for superior quality
+- **Actual cost tracking** - Real-time cost monitoring from OpenRouter API responses stored in database
 - **Comprehensive extraction** - 2000 tokens for detailed, complete summaries
 - **Style preservation** - Maintains each creator's unique voice, humor, and perspective
 - **Smart prompting** - Tailored prompts for different content types (tech, crypto, geopolitics, science)
@@ -242,7 +243,22 @@ The `COOKIES_FILE` is essential for accessing age-restricted or private YouTube 
 
 ---
 
-## Recent Improvements (v2.0)
+## Recent Improvements (v2.1)
+
+### 💰 **Cost Tracking & Model Updates**
+- **Real cost tracking** - Actual costs from OpenRouter stored in database (not estimates)
+- **New model configuration** - GLM-4.6 (primary), Claude 3.5 Haiku (secondary), Mistral Medium 3.1 (synthesis)
+- **Simplified configuration** - Multi-model is now a simple boolean toggle (no complex thresholds)
+- **Cost analytics ready** - Detailed token usage and costs stored for GUI analytics dashboard
+- **Database schema** - Enhanced with `cost_estimate` and `token_usage_json` fields
+
+### 🎯 **Configuration Improvements**
+- **Removed cost thresholds** - No automatic fallback based on content length
+- **Explicit control** - Users choose single vs multi-model via `enabled: true/false`
+- **Updated all channels** - 7 channel configs updated with new model selections
+- **Environment sync** - .env file updated with latest model defaults
+
+## Previous Improvements (v2.0)
 
 ### 🎯 **Smart Message Splitting**
 Long summaries are now automatically split into multiple messages with clear part numbering:

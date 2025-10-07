@@ -4,11 +4,11 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8001/api/:path*', // Proxy to FastAPI backend
+        destination: 'http://localhost:8000/api/:path*', // Proxy to FastAPI backend
       },
       {
         source: '/ws/:path*',
-        destination: 'http://localhost:8001/ws/:path*', // Proxy WebSocket connections
+        destination: 'http://localhost:8000/ws/:path*', // Proxy WebSocket connections
       },
     ]
   },

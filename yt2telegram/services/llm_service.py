@@ -52,17 +52,15 @@ class LLMService:
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
     @api_retry
-    def summarize(self, content: str) -> str:
-        """Generate summary of video content"""
+    def summarize(self, content: str) -> tuple[str, dict]:
+        """Generate summary of video content
+        
+        Returns:
+            tuple: (summary_text, usage_dict) where usage_dict contains token counts and cost
+        """
         if not content:
             logger.warning("Empty content provided for summarization")
-            return "No content to summarize"
-
-        # Truncate content if too long (keep within reasonable token limits)
-        max_content_chars = 50000  # Roughly 12-15k tokens
-        if len(content) > max_content_chars:
-            logger.info("Content too long, truncating", content_length=len(content), max_chars=max_content_chars)
-            content = content[:max_content_chars] + "...\n\n[Content truncated due to length]"
+            return "No content to summarize", {}
 
         prompt = self.prompt_template.format(content=content)
         logger.info("Generating summary", content_length=len(content))
@@ -73,17 +71,39 @@ class LLMService:
                 {"role": "system", "content": "You are an expert content analyst who creates comprehensive, detailed summaries while preserving the original author's voice and style."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=2000,  # Increased back to 2000 - issue was Markdown parsing, not length
+            max_tokens=2000,
             temperature=0.7
         )
         summary = response.choices[0].message.content.strip()
         
+        # Extract usage information from response
+        usage_dict = {}
+        if hasattr(response, 'usage') and response.usage:
+            usage_dict = {
+                'prompt_tokens': getattr(response.usage, 'prompt_tokens', 0),
+                'completion_tokens': getattr(response.usage, 'completion_tokens', 0),
+                'total_tokens': getattr(response.usage, 'total_tokens', 0)
+            }
+        
+        # OpenRouter provides cost in the response
+        # Check for cost in different possible locations
+        cost = 0.0
+        if hasattr(response, 'x_openrouter') and hasattr(response.x_openrouter, 'cost'):
+            cost = response.x_openrouter.cost
+        elif hasattr(response, 'usage') and hasattr(response.usage, 'cost'):
+            cost = response.usage.cost
+        
+        usage_dict['cost'] = cost
+        
         # Log more details about the response
-        logger.info("Generated summary", summary_length=len(summary), preview=summary[:200])
+        logger.info("Generated summary", 
+                   summary_length=len(summary), 
+                   usage=usage_dict,
+                   preview=summary[:200])
         
         if not summary:
             logger.warning("LLM returned empty summary")
-            return "Summary generation failed - empty response from LLM"
+            return "Summary generation failed - empty response from LLM", usage_dict
         
-        return summary
+        return summary, usage_dict
 

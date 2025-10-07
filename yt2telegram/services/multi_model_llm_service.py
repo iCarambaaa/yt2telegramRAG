@@ -72,7 +72,6 @@ class MultiModelLLMService:
         self.secondary_model = multi_model_config.get('secondary_model', 'anthropic/claude-3-haiku')
         self.synthesis_model = multi_model_config.get('synthesis_model', 'gpt-4o')
         
-        self.cost_threshold_tokens = multi_model_config.get('cost_threshold_tokens', 50000)
         self.fallback_strategy = multi_model_config.get('fallback_strategy', 'best_summary')
         
         # Get synthesis prompt template
@@ -104,20 +103,15 @@ Create a comprehensive final summary that combines the best insights from both s
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
     @api_retry
-    def _generate_single_summary(self, content: str, model: str, summary_type: str = "summary") -> str:
-        """Generate a single summary using specified model"""
+    def _generate_single_summary(self, content: str, model: str, summary_type: str = "summary") -> tuple[str, dict]:
+        """Generate a single summary using specified model
+        
+        Returns:
+            tuple: (summary_text, usage_dict) where usage_dict contains token counts and cost
+        """
         if not content:
             logger.warning("Empty content provided for summarization")
-            return "No content to summarize"
-
-        # Truncate content if too long
-        max_content_chars = 50000
-        if len(content) > max_content_chars:
-            logger.info("Content too long, truncating", 
-                       content_length=len(content), 
-                       max_chars=max_content_chars,
-                       model=model)
-            content = content[:max_content_chars] + "...\n\n[Content truncated due to length]"
+            return "No content to summarize", {}
 
         prompt = self.prompt_template.format(content=content)
         logger.info("Generating summary", 
@@ -137,21 +131,60 @@ Create a comprehensive final summary that combines the best insights from both s
         
         summary = response.choices[0].message.content.strip()
         
+        # COST: Extract usage information and actual cost from OpenRouter response
+        usage_dict = {}
+        if hasattr(response, 'usage') and response.usage:
+            usage_dict = {
+                'prompt_tokens': getattr(response.usage, 'prompt_tokens', 0),
+                'completion_tokens': getattr(response.usage, 'completion_tokens', 0),
+                'total_tokens': getattr(response.usage, 'total_tokens', 0),
+                'cost': 0.0
+            }
+        
+        # OpenRouter returns cost in different ways depending on the response format
+        # Check multiple possible locations for cost data
+        cost = 0.0
+        
+        # Method 1: Check usage object for cost (some OpenRouter responses)
+        if hasattr(response, 'usage') and hasattr(response.usage, 'cost'):
+            cost = float(getattr(response.usage, 'cost', 0.0))
+        
+        # Method 2: Check for x_openrouter metadata
+        elif hasattr(response, 'x_openrouter') and hasattr(response.x_openrouter, 'cost'):
+            cost = float(getattr(response.x_openrouter, 'cost', 0.0))
+        
+        # Method 3: Check response metadata/headers (raw response object)
+        elif hasattr(response, '_raw_response'):
+            raw = response._raw_response
+            if hasattr(raw, 'headers') and 'x-openrouter-cost' in raw.headers:
+                try:
+                    cost = float(raw.headers['x-openrouter-cost'])
+                except (ValueError, TypeError):
+                    pass
+        
+        usage_dict['cost'] = cost
+        
         logger.info("Generated summary", 
                    summary_length=len(summary), 
                    model=model,
                    summary_type=summary_type,
+                   usage=usage_dict,
+                   cost_usd=f"${cost:.6f}",
                    preview=summary[:200])
         
         if not summary:
             logger.warning("LLM returned empty summary", model=model)
-            return f"Summary generation failed - empty response from {model}"
+            return f"Summary generation failed - empty response from {model}", usage_dict
         
-        return summary
+        return summary, usage_dict
 
     @api_retry
-    def _synthesize_summaries(self, summary_a: str, summary_b: str, original_content: str) -> str:
-        """Synthesize two summaries into a final enhanced summary"""
+    def _synthesize_summaries(self, summary_a: str, summary_b: str, original_content: str) -> tuple[str, dict]:
+        """Synthesize two summaries into a final enhanced summary
+        
+        Returns:
+            tuple: (synthesis_text, usage_dict) where usage_dict contains token counts and cost
+        """
         logger.info("Synthesizing summaries", 
                    summary_a_length=len(summary_a),
                    summary_b_length=len(summary_b),
@@ -179,12 +212,46 @@ Create a comprehensive final summary that combines the best insights from both s
         
         synthesis = response.choices[0].message.content.strip()
         
+        # COST: Extract usage information and actual cost from OpenRouter response
+        usage_dict = {}
+        if hasattr(response, 'usage') and response.usage:
+            usage_dict = {
+                'prompt_tokens': getattr(response.usage, 'prompt_tokens', 0),
+                'completion_tokens': getattr(response.usage, 'completion_tokens', 0),
+                'total_tokens': getattr(response.usage, 'total_tokens', 0),
+                'cost': 0.0
+            }
+        
+        # OpenRouter returns cost in different ways depending on the response format
+        cost = 0.0
+        
+        # Method 1: Check usage object for cost
+        if hasattr(response, 'usage') and hasattr(response.usage, 'cost'):
+            cost = float(getattr(response.usage, 'cost', 0.0))
+        
+        # Method 2: Check for x_openrouter metadata
+        elif hasattr(response, 'x_openrouter') and hasattr(response.x_openrouter, 'cost'):
+            cost = float(getattr(response.x_openrouter, 'cost', 0.0))
+        
+        # Method 3: Check response metadata/headers
+        elif hasattr(response, '_raw_response'):
+            raw = response._raw_response
+            if hasattr(raw, 'headers') and 'x-openrouter-cost' in raw.headers:
+                try:
+                    cost = float(raw.headers['x-openrouter-cost'])
+                except (ValueError, TypeError):
+                    pass
+        
+        usage_dict['cost'] = cost
+        
         logger.info("Generated synthesis", 
                    synthesis_length=len(synthesis),
                    model=self.synthesis_model,
+                   usage=usage_dict,
+                   cost_usd=f"${cost:.6f}",
                    preview=synthesis[:200])
         
-        return synthesis
+        return synthesis, usage_dict
 
     def summarize(self, content: str) -> str:
         """Generate multi-model enhanced summary (backward compatible)"""
@@ -192,7 +259,14 @@ Create a comprehensive final summary that combines the best insights from both s
         return result.get('final_summary', '')
     
     def summarize_enhanced(self, content: str) -> dict:
-        """Generate multi-model enhanced summary with detailed metadata"""
+        """Generate multi-model enhanced summary with detailed metadata
+        
+        Returns dict with:
+        - final_summary: The synthesized summary text
+        - cost_estimate: Total actual cost from OpenRouter (USD)
+        - token_usage_json: JSON string with detailed token usage
+        - All model outputs and metadata
+        """
         start_time = time.time()
         
         result = {
@@ -211,54 +285,48 @@ Create a comprehensive final summary that combines the best insights from both s
         }
         
         try:
-            # Estimate token count (rough approximation)
-            estimated_tokens = len(content) // 4
-            
-            # Check if we should use fallback due to cost threshold
-            if estimated_tokens > self.cost_threshold_tokens:
-                logger.warning("Content exceeds cost threshold, using fallback strategy",
-                             estimated_tokens=estimated_tokens,
-                             threshold=self.cost_threshold_tokens,
-                             fallback_strategy=self.fallback_strategy)
-                
-                result['fallback_used'] = True
-                result['summarization_method'] = 'fallback'
-                
-                if self.fallback_strategy == "primary_summary":
-                    fallback_summary = self._generate_single_summary(content, self.primary_model, "fallback_primary")
-                    result['final_summary'] = fallback_summary
-                    result['primary_summary'] = fallback_summary
-                else:  # best_summary
-                    fallback_summary = self._generate_single_summary(content, self.synthesis_model, "fallback_best")
-                    result['final_summary'] = fallback_summary
-                    result['synthesis_summary'] = fallback_summary
-                
-                result['processing_time_seconds'] = time.time() - start_time
-                return result
-            
             # Generate primary summary
             logger.info("Starting multi-model summarization", 
                        primary_model=self.primary_model,
                        secondary_model=self.secondary_model,
                        synthesis_model=self.synthesis_model)
             
-            primary_summary = self._generate_single_summary(content, self.primary_model, "primary")
+            primary_summary, primary_usage = self._generate_single_summary(content, self.primary_model, "primary")
             result['primary_summary'] = primary_summary
             
             # Generate secondary summary
-            secondary_summary = self._generate_single_summary(content, self.secondary_model, "secondary")
+            secondary_summary, secondary_usage = self._generate_single_summary(content, self.secondary_model, "secondary")
             result['secondary_summary'] = secondary_summary
             
             # Synthesize summaries
-            final_summary = self._synthesize_summaries(primary_summary, secondary_summary, content)
+            final_summary, synthesis_usage = self._synthesize_summaries(primary_summary, secondary_summary, content)
             result['synthesis_summary'] = final_summary
             result['final_summary'] = final_summary
+            
+            # COST: Aggregate actual costs from all three API calls
+            total_cost = (
+                primary_usage.get('cost', 0.0) +
+                secondary_usage.get('cost', 0.0) +
+                synthesis_usage.get('cost', 0.0)
+            )
+            result['cost_estimate'] = round(total_cost, 6)
+            
+            # Aggregate token usage for analytics
+            import json
+            token_usage = {
+                'primary': primary_usage,
+                'secondary': secondary_usage,
+                'synthesis': synthesis_usage,
+                'total_cost': total_cost
+            }
+            result['token_usage_json'] = json.dumps(token_usage)
             
             processing_time = time.time() - start_time
             result['processing_time_seconds'] = round(processing_time, 2)
             
             logger.info("Multi-model summarization completed",
                        processing_time_seconds=result['processing_time_seconds'],
+                       total_cost_usd=f"${total_cost:.6f}",
                        primary_length=len(primary_summary),
                        secondary_length=len(secondary_summary),
                        final_length=len(final_summary))
@@ -270,12 +338,16 @@ Create a comprehensive final summary that combines the best insights from both s
                         error=str(e),
                         fallback_model=self.primary_model)
             
-            # Fallback to single model
+            # FALLBACK: Use single model on error
             result['fallback_used'] = True
             result['summarization_method'] = 'error_fallback'
-            fallback_summary = self._generate_single_summary(content, self.primary_model, "error_fallback")
+            fallback_summary, fallback_usage = self._generate_single_summary(content, self.primary_model, "error_fallback")
             result['final_summary'] = fallback_summary
             result['primary_summary'] = fallback_summary
+            result['cost_estimate'] = round(fallback_usage.get('cost', 0.0), 6)
+            
+            import json
+            result['token_usage_json'] = json.dumps({'fallback': fallback_usage})
             result['processing_time_seconds'] = time.time() - start_time
             
             return result

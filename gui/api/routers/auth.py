@@ -91,7 +91,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except jwt.JWTError:
+    except (jwt.exceptions.DecodeError, jwt.exceptions.InvalidTokenError, Exception):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
@@ -186,6 +186,14 @@ async def refresh_token(token_data: Dict[str, Any] = Depends(verify_token)):
 def get_current_user_dependency():
     """Dependency to get current user for protected routes."""
     return verify_token
+
+
+def get_optional_user() -> Optional[Dict[str, Any]]:
+    """
+    Optional authentication - returns user data if authenticated, None otherwise.
+    Useful for development and public endpoints.
+    """
+    return None  # For development, skip authentication
 
 
 def require_permission(permission: str):

@@ -125,7 +125,7 @@ def process_channel(config: ChannelConfig) -> bool:
                         summary_result = llm_service.summarize_enhanced(cleaned_subtitles)
                         summary = summary_result.get('final_summary', '')
                         
-                        # Populate multi-model fields
+                        # COST: Populate multi-model fields including actual cost from OpenRouter
                         video.summarization_method = summary_result.get('summarization_method', 'multi_model')
                         video.primary_summary = summary_result.get('primary_summary')
                         video.secondary_summary = summary_result.get('secondary_summary')
@@ -137,10 +137,27 @@ def process_channel(config: ChannelConfig) -> bool:
                         video.fallback_used = summary_result.get('fallback_used', False)
                         video.token_usage_json = summary_result.get('token_usage_json', '{}')
                         video.cost_estimate = summary_result.get('cost_estimate', 0.0)
+                        
+                        logger.info("Multi-model summary generated", 
+                                   video_id=video.id, 
+                                   summary_length=len(summary),
+                                   cost_usd=f"${video.cost_estimate:.6f}")
                     else:
-                        # Single-model service
-                        summary = llm_service.summarize(cleaned_subtitles)
+                        # Single-model service - now returns tuple with usage
+                        summary, usage_dict = llm_service.summarize(cleaned_subtitles)
                         video.summarization_method = 'single_model'
+                        video.primary_model = llm_service.model
+                        
+                        # COST: Store actual cost from OpenRouter
+                        video.cost_estimate = usage_dict.get('cost', 0.0)
+                        
+                        import json
+                        video.token_usage_json = json.dumps({'single': usage_dict})
+                        
+                        logger.info("Single-model summary generated", 
+                                   video_id=video.id, 
+                                   summary_length=len(summary),
+                                   cost_usd=f"${video.cost_estimate:.6f}")
                     
                     logger.info("Successfully generated summary", video_id=video.id, summary_length=len(summary))
                 except Exception as e:

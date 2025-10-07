@@ -66,8 +66,8 @@ class ChannelDatabaseService:
                 # Get basic channel info
                 cursor = conn.execute("""
                     SELECT COUNT(*) as video_count,
-                           MIN(upload_date) as first_video,
-                           MAX(upload_date) as latest_video
+                           MIN(published_at) as first_video,
+                           MAX(published_at) as latest_video
                     FROM videos
                 """)
                 stats = cursor.fetchone()
@@ -76,7 +76,7 @@ class ChannelDatabaseService:
                 cursor = conn.execute("""
                     SELECT title, channel_name, url
                     FROM videos
-                    ORDER BY upload_date DESC
+                    ORDER BY published_at DESC
                     LIMIT 1
                 """)
                 sample_video = cursor.fetchone()
