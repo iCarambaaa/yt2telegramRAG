@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.4.0] - 2025-10-08
+
+### 🔐 **Members-Only Content Detection**
+- **Smart detection**: Distinguishes between permanent members-only and members-first (early access) content
+- **Availability tracking**: Captures YouTube availability status and release timestamps
+- **Intelligent handling**: Skips permanent members-only, allows retry for members-first
+- **Database schema**: Enhanced video model with availability and release_timestamp fields
+- **Exception types**: New MembersOnlyError and MembersFirstError for precise error handling
+
+### 🔄 **Members-First Retry Support**
+- **Temporary skip**: Members-first videos not marked as processed, allowing future retry
+- **Release tracking**: Logs when early access videos become public
+- **Utility script**: `check_members_first_videos.py` to identify videos ready for retry
+- **Automatic migration**: Database schema automatically updated with new fields
+
+### 📊 **Enhanced Logging**
+- **Detailed availability info**: Logs availability status, release timestamps, and skip reasons
+- **Clear distinction**: Different log levels for permanent vs temporary restrictions
+- **Troubleshooting support**: Comprehensive logging for debugging access issues
+
+### 📖 **Documentation**
+- **Complete guide**: New MEMBERS_ONLY_HANDLING.md with implementation details
+- **Usage examples**: Clear examples of detection and handling
+- **Future enhancements**: Roadmap for automatic retry mechanism
+- **Troubleshooting**: Common issues and solutions
+
 ## [2.3.0] - 2025-02-09
 
 ### 🤖 **Multi-Model Summarization System**

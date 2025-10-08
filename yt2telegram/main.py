@@ -34,6 +34,7 @@ from .services.llm_service import LLMService
 from .services.multi_model_llm_service import MultiModelLLMService
 from .utils.subtitle_cleaner import SubtitleCleaner
 from .config_finder import find_channel_configs
+from .exceptions import MembersOnlyError, MembersFirstError
 
 # Setup logging
 setup_logging()
@@ -146,12 +147,40 @@ def process_channel(config: ChannelConfig) -> bool:
             # No need to handle published_at - we use processed_at from database
 
             # Download and clean subtitles
+            # SECURITY: Handle members-only and members-first content appropriately
             temp_subtitle_dir = Path(f"yt2telegram/downloads/{config.channel_id}/raw_subtitles")
-            raw_subtitle_path = youtube_service.download_subtitles(
-                video.id, 
-                config.subtitle_preferences, 
-                str(temp_subtitle_dir)
-            )
+            raw_subtitle_path = None
+            
+            try:
+                raw_subtitle_path = youtube_service.download_subtitles(
+                    video.id, 
+                    config.subtitle_preferences, 
+                    str(temp_subtitle_dir)
+                )
+            except MembersOnlyError as e:
+                # DECISION: Skip permanent members-only content
+                logger.warning("Skipping permanently members-only video", 
+                             video_id=video.id, 
+                             video_title=video.title,
+                             reason="permanent_members_only")
+                # Mark as processed to avoid retrying
+                video.summary = "[Members-only content - skipped]"
+                video.summarization_method = "skipped_members_only"
+                db_service.add_video(video)
+                failed_count += 1
+                continue
+            except MembersFirstError as e:
+                # DECISION: Log members-first content for potential future retry
+                release_time = datetime.fromtimestamp(e.release_timestamp).isoformat() if e.release_timestamp else "unknown"
+                logger.info("Skipping members-first video (early access)", 
+                          video_id=video.id,
+                          video_title=video.title,
+                          becomes_public_at=release_time,
+                          reason="members_first_early_access")
+                # Don't mark as processed - allow retry after release
+                # TODO: Implement scheduled retry mechanism
+                failed_count += 1
+                continue
 
             # Process subtitles with enhanced cleaning
             raw_subtitles = ""

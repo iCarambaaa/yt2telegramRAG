@@ -81,50 +81,8 @@ class ChannelConfig:
     # @agent:test-coverage critical,malformed-yaml,missing-files
     @classmethod
     def from_yaml(cls, config_path: str) -> 'ChannelConfig':
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-        """Load and validate channel configuration from YAML file with comprehensive error handling.
-        
-        Factory method that safely loads YAML configuration files and converts
-        them to ChannelConfig instances with full validation and error reporting.
-        Handles missing files, malformed YAML, and invalid configuration gracefully.
-        
-        Intent: Safely convert YAML configuration files to validated configuration objects
-        Critical: Configuration loading errors prevent channel processing entirely
-        
-        AI-DECISION: Configuration validation strategy
-        Criteria:
-        - Required fields missing → raise ValueError with specific field names
-        - Invalid field values → raise ValueError with validation details
-        - File not found → raise FileNotFoundError with clear path information
-        - YAML parsing error → raise yaml.YAMLError with syntax details
-        
-        Args:
-            config_path (str): Path to YAML configuration file
-            
-        Returns:
-            ChannelConfig: Validated configuration instance
-            
-        Raises:
-            FileNotFoundError: Configuration file doesn't exist
-            yaml.YAMLError: YAML syntax or parsing errors
-            ValueError: Missing required fields or invalid values
-            
-        AI-NOTE: 
-            - YAML loading uses safe_load to prevent code execution
-            - File path validation prevents directory traversal attacks
-            - Comprehensive error messages help with configuration debugging
-            - Backward compatibility maintained with existing YAML formats
-        """
-        with open(config_path, 'r') as f:
-=======
         """Load channel config from YAML file"""
         with open(config_path, 'r', encoding='utf-8') as f:
->>>>>>> Stashed changes
-=======
-        """Load channel config from YAML file"""
-        with open(config_path, 'r', encoding='utf-8') as f:
->>>>>>> Stashed changes
             data = yaml.safe_load(f)
         
         return cls(

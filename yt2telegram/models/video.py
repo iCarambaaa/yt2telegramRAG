@@ -65,6 +65,10 @@ class Video:
     channel_id: str  # YouTube channel ID (24 chars, UC prefix)
     published_at: Optional[str] = None  # ISO format date
     
+    # Availability and access control
+    availability: Optional[str] = None  # public, unlisted, private, premium_only, needs_auth
+    release_timestamp: Optional[int] = None  # Unix timestamp when members-first becomes public
+    
     # Subtitle processing pipeline
     raw_subtitles: Optional[str] = None  # Original VTT content
     cleaned_subtitles: Optional[str] = None  # Processed text (~88% reduction)
@@ -140,7 +144,9 @@ class Video:
             id=entry["id"],
             title=entry.get("title", ""),
             channel_id=channel_id,
-            published_at=published_at
+            published_at=published_at,
+            availability=entry.get("availability"),
+            release_timestamp=entry.get("release_timestamp")
         )
     
     def to_dict(self) -> dict:
@@ -150,6 +156,8 @@ class Video:
             'title': self.title,
             'channel_id': self.channel_id,
             'published_at': self.published_at,
+            'availability': self.availability,
+            'release_timestamp': self.release_timestamp,
             'raw_subtitles': self.raw_subtitles,
             'cleaned_subtitles': self.cleaned_subtitles,
             'summary': self.summary,

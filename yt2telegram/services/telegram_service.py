@@ -250,24 +250,13 @@ class TelegramService:
         for part_index, summary_part in enumerate(summary_parts):
             part_success = False
             
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-=======
-=======
->>>>>>> Stashed changes
             # Use consistent header (part numbering is handled in the summary content itself)
             part_header = header
             
->>>>>>> Stashed changes
             # Primary Approach: Convert markdown-style to clean HTML
             try:
                 # Convert the LLM's markdown-style output to clean HTML
                 clean_summary = Sanitizer.convert_markdown_to_clean_html(summary_part)
-                
-                # Create part-specific header with proper formatting
-               # if total_parts > 1:
-               #     message_header = f"{header} - Part {part_index + 1}/{total_parts}"
-               # else:
                 #    message_header = header
                 
                 # Escape only the header and title

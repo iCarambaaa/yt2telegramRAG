@@ -41,3 +41,17 @@ class ValidationError(ChannelManagerError):
 class RetryExhaustedError(ChannelManagerError):
     """Raised when all retry attempts are exhausted."""
     pass
+
+class MembersOnlyError(YouTubeAPIError):
+    """Raised when video is permanently restricted to channel members."""
+    pass
+
+class MembersFirstError(YouTubeAPIError):
+    """Raised when video is temporarily restricted (early access for members).
+    
+    Attributes:
+        release_timestamp: Unix timestamp when video becomes public (if available)
+    """
+    def __init__(self, message: str, release_timestamp: int = None):
+        super().__init__(message)
+        self.release_timestamp = release_timestamp

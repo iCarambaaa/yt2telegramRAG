@@ -7,6 +7,7 @@ from pathlib import Path
 from ..models.video import Video
 from ..utils.retry import api_retry
 from ..utils.logging_config import LoggerFactory
+from ..exceptions import MembersOnlyError, MembersFirstError
 
 logger = LoggerFactory.create_logger(__name__)
 
@@ -192,7 +193,15 @@ class YouTubeService:
         return videos
 
     def download_subtitles(self, video_id: str, subtitle_preferences: List[str], output_dir: str) -> str:
-        """Download subtitles for a video with smart priority logic"""
+        """Download subtitles for a video with smart priority logic.
+        
+        SECURITY: Detects and raises appropriate exceptions for restricted content
+        DECISION: Distinguishes between permanent members-only and temporary members-first
+        
+        Raises:
+            MembersOnlyError: Video is permanently restricted to channel members
+            MembersFirstError: Video is temporarily restricted (early access)
+        """
         logger.info("Downloading subtitles for video", video_id=video_id)
         
         output_path = Path(output_dir)
@@ -221,11 +230,35 @@ class YouTubeService:
         video_url = f"https://www.youtube.com/watch?v={video_id}"
         original_language = "en"  # Default fallback
         
-        # Try to detect original language
+        # Try to detect original language and check availability
         available_subtitles = {}
         try:
             with yt_dlp.YoutubeDL(info_opts) as ydl:
                 info = ydl.extract_info(video_url, download=False)
+                
+                # SECURITY: Check video availability status
+                availability = info.get('availability')
+                release_timestamp = info.get('release_timestamp')
+                
+                # DECISION: Detect members-only vs members-first content
+                if availability in ['premium_only', 'subscriber_only']:
+                    if release_timestamp:
+                        # Members-first: has scheduled public release
+                        logger.warning("Video is members-first (early access)", 
+                                     video_id=video_id,
+                                     availability=availability,
+                                     release_timestamp=release_timestamp)
+                        raise MembersFirstError(
+                            f"Video {video_id} is members-first, becomes public at timestamp {release_timestamp}",
+                            release_timestamp=release_timestamp
+                        )
+                    else:
+                        # Permanent members-only content
+                        logger.warning("Video is permanently members-only", 
+                                     video_id=video_id,
+                                     availability=availability)
+                        raise MembersOnlyError(f"Video {video_id} is permanently restricted to channel members")
+                
                 original_language = info.get('language') or info.get('original_language') or "en"
                 
                 # Get available subtitles info
@@ -239,15 +272,24 @@ class YouTubeService:
                 logger.info("Detected video language and available subtitles", 
                            original_language=original_language,
                            manual_subtitles=manual_langs,
-                           auto_captions=auto_langs)
+                           auto_captions=auto_langs,
+                           availability=availability)
                 
                 available_subtitles = {
                     'manual': subtitles,
                     'auto': automatic_captions
                 }
                 
+        except (MembersOnlyError, MembersFirstError):
+            # Re-raise our custom exceptions
+            raise
         except Exception as e:
-            logger.warning("Could not detect original language or subtitles, using defaults", error=str(e))
+            error_msg = str(e)
+            # FALLBACK: Detect members-only from error message if metadata check failed
+            if "Join this channel to get access to members-only content" in error_msg:
+                logger.warning("Detected members-only from error message", video_id=video_id)
+                raise MembersOnlyError(f"Video {video_id} is restricted to channel members")
+            logger.warning("Could not detect original language or subtitles, using defaults", error=error_msg)
         
         # Build smart priority list respecting config file order:
         # For each language in config (e.g., ["ru", "en"]):

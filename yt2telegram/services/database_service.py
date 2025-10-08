@@ -132,6 +132,11 @@ class DatabaseService:
                     title TEXT NOT NULL,
                     channel_id TEXT NOT NULL,
                     published_at TEXT,
+                    
+                    -- Availability and access control
+                    availability TEXT,
+                    release_timestamp INTEGER,
+                    
                     raw_subtitles TEXT,
                     cleaned_subtitles TEXT,
                     summary TEXT,
@@ -212,6 +217,8 @@ class DatabaseService:
         # Consequences: Backward compatibility maintained, analytics work correctly
         new_columns = [
             ('published_at', 'TEXT'),  # NULL acceptable for older videos
+            ('availability', 'TEXT'),  # NULL for older videos, populated for new ones
+            ('release_timestamp', 'INTEGER'),  # NULL unless members-first content
             ('summarization_method', 'TEXT DEFAULT "single"'),  # Assume single-model for existing
             ('primary_summary', 'TEXT'),  # NULL acceptable, will be populated on re-processing
             ('secondary_summary', 'TEXT'),  # NULL for single-model summaries
@@ -248,16 +255,19 @@ class DatabaseService:
         with self._get_connection() as conn:
             conn.execute('''
                 INSERT OR REPLACE INTO videos 
-                (id, title, channel_id, published_at, raw_subtitles, cleaned_subtitles, summary,
+                (id, title, channel_id, published_at, availability, release_timestamp,
+                 raw_subtitles, cleaned_subtitles, summary,
                  summarization_method, primary_summary, secondary_summary, synthesis_summary,
                  primary_model, secondary_model, synthesis_model, token_usage_json,
                  processing_time_seconds, cost_estimate, fallback_used)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 video.id,
                 video.title,
                 video.channel_id,
                 video.published_at,
+                video.availability,
+                video.release_timestamp,
                 video.raw_subtitles,
                 video.cleaned_subtitles,
                 video.summary,
