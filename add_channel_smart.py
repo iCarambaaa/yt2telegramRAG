@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Smart channel setup tool that analyzes channel content and creates personalized prompts
+Smart channel setup tool that analyzes channel content and creates personalized prompts.
+Supports multiple channels at once.
 """
 
 import sys
@@ -21,14 +22,25 @@ class ChannelAnalyzer:
     """AI-powered YouTube channel analyzer that deeply understands content and style"""
     
     def __init__(self):
-        self.ydl_opts = {
+        # Simplified options for faster channel name lookup
+        self.quick_opts = {
+            'extract_flat': True,
+            'skip_download': True,
+            'quiet': True,
+            'playlist_items': '1',
+            'cookiefile': 'COOKIES_FILE'
+        }
+        
+        # Detailed options for content analysis
+        self.detailed_opts = {
             'quiet': True,
             'extract_flat': False,
             'writesubtitles': False,
             'writeautomaticsub': True,
             'subtitleslangs': ['-live_chat'],
             'skip_download': True,
-            'playlist_items': '1:5'  # Analyze first 5 videos
+            'playlist_items': '1:3',  # Analyze first 3 videos (faster)
+            'cookiefile': 'COOKIES_FILE'
         }
         
         # Initialize LLM client
@@ -37,50 +49,63 @@ class ChannelAnalyzer:
             base_url=os.getenv('BASE_URL', 'https://openrouter.ai/api/v1')
         )
     
+    def get_channel_name(self, channel_id: str) -> Optional[str]:
+        """Quickly get just the channel name"""
+        try:
+            with yt_dlp.YoutubeDL(self.quick_opts) as ydl:
+                channel_url = f"https://www.youtube.com/channel/{channel_id}/videos"
+                info = ydl.extract_info(channel_url, download=False)
+                return info.get('channel', info.get('uploader', 'Unknown'))
+        except Exception as e:
+            print(f"⚠️ Error fetching channel name: {e}")
+            return None
+    
     def get_channel_info(self, channel_id: str) -> Optional[Dict]:
         """Get comprehensive channel information with video content"""
-        print(f"🔍 Fetching channel data: {channel_id}")
+        print(f"🔍 Analyzing channel: {channel_id}")
         
         try:
-            with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
+            with yt_dlp.YoutubeDL(self.detailed_opts) as ydl:
                 channel_url = f"https://www.youtube.com/channel/{channel_id}/videos"
                 info = ydl.extract_info(channel_url, download=False)
                 
-                channel_name = info.get('title', info.get('uploader', 'Unknown Channel'))
+                channel_name = info.get('title', info.get('channel', info.get('uploader', 'Unknown Channel')))
                 description = info.get('description', '')
-                entries = info.get('entries', [])[:5]
+                entries = info.get('entries', [])[:3]  # Reduced to 3 for speed
                 
                 print(f"✅ Found: {channel_name}")
-                print(f"📊 Downloading subtitles from {len(entries)} recent videos...")
+                print(f"📊 Analyzing {len(entries)} recent videos...")
                 
                 # Get detailed video info with subtitles
                 detailed_videos = []
-                for entry in entries:
+                for i, entry in enumerate(entries, 1):
                     try:
+                        print(f"   Video {i}/{len(entries)}...", end=' ')
                         video_info = ydl.extract_info(entry['url'], download=False)
                         
-                        # Extract subtitle content
+                        # Extract subtitle content (simplified)
                         subtitle_content = ""
                         if 'automatic_captions' in video_info:
                             for lang, subs in video_info['automatic_captions'].items():
                                 if subs:  # Take first available subtitle format
                                     sub_url = subs[0]['url']
                                     import requests
-                                    response = requests.get(sub_url)
+                                    response = requests.get(sub_url, timeout=10)
                                     if response.status_code == 200:
-                                        subtitle_content = response.text[:5000]  # First 5000 chars
+                                        subtitle_content = response.text[:3000]  # Reduced to 3000 chars
                                         break
                         
                         detailed_videos.append({
                             'title': video_info.get('title', ''),
-                            'description': video_info.get('description', '')[:1000],  # First 1000 chars
+                            'description': video_info.get('description', '')[:500],  # Reduced to 500 chars
                             'subtitles': subtitle_content,
                             'view_count': video_info.get('view_count', 0),
                             'upload_date': video_info.get('upload_date', '')
                         })
+                        print("✓")
                         
                     except Exception as e:
-                        print(f"⚠️ Skipping video due to error: {e}")
+                        print(f"✗ ({str(e)[:30]})")
                         continue
                 
                 return {
@@ -169,16 +194,16 @@ Focus on factual content capture while preserving the creator's unique style and
         
         # Channel description
         if channel_info.get('description'):
-            content_parts.append(f"CHANNEL DESCRIPTION:\n{channel_info['description'][:500]}")
+            content_parts.append(f"CHANNEL DESCRIPTION:\n{channel_info['description'][:400]}")
         
         # Recent videos
         videos = channel_info.get('videos', [])
-        for i, video in enumerate(videos[:5], 1):
+        for i, video in enumerate(videos[:3], 1):  # Reduced to 3 videos
             content_parts.append(f"\nVIDEO {i}:")
             content_parts.append(f"Title: {video.get('title', 'N/A')}")
             
             if video.get('description'):
-                content_parts.append(f"Description: {video['description'][:300]}...")
+                content_parts.append(f"Description: {video['description'][:200]}...")
             
             if video.get('subtitles'):
                 # Clean subtitle content
@@ -188,7 +213,7 @@ Focus on factual content capture while preserving the creator's unique style and
                 subtitle_text = re.sub(r'\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}', '', subtitle_text)
                 subtitle_text = ' '.join(subtitle_text.split())  # Clean whitespace
                 
-                content_parts.append(f"Content excerpt: {subtitle_text[:800]}...")
+                content_parts.append(f"Content excerpt: {subtitle_text[:600]}...")
         
         return '\n'.join(content_parts)
     
@@ -288,64 +313,73 @@ def create_channel_config(channel_info: Dict, analysis: Dict) -> Dict:
     # Create clean safe name: replace spaces/special chars with single underscore, remove consecutive underscores
     safe_name = re.sub(r'[^a-zA-Z0-9]+', '_', name.lower()).strip('_')
     
+    # Detect primary language from analysis or default to English
+    primary_language = "en"
+    if any(keyword in name.lower() for keyword in ['русск', 'russian', 'объектив', 'кац']):
+        primary_language = "ru"
+    
+    subtitles = [primary_language]
+    if primary_language != "en":
+        subtitles.append("en")  # Add English as fallback
+    
     return {
         'name': name,
         'channel_id': channel_info['id'],
         'db_path': f"yt2telegram/downloads/{safe_name}.db",
         'cookies_file': "COOKIES_FILE",
-        'max_videos_to_fetch': 3,
+        'max_videos_to_fetch': 1,
         'retry_attempts': 3,
         'retry_delay_seconds': 5,
         'llm_config': {
             'llm_api_key_env': "LLM_PROVIDER_API_KEY",
             'llm_model_env': "MODEL",
-            'llm_model': "gpt-4o-mini",
+            'llm_model': os.getenv('MODEL', 'deepseek/deepseek-chat-v3-0324'),
             'llm_base_url_env': "BASE_URL",
             'llm_base_url': "https://openrouter.ai/api/v1",
-            'llm_prompt_template_path': f"yt2telegram/prompts/{safe_name}_summary.md"
+            'llm_prompt_template_path': f"yt2telegram/prompts/{safe_name}_summary.md",
+            'creator_context': f"{name} - {analysis.get('unique_style', 'Content creator')[:100]}",
+            'multi_model': {
+                'enabled': True,
+                'primary_model': os.getenv('MODEL', 'deepseek/deepseek-chat-v3-0324'),
+                'secondary_model': "anthropic/claude-3.5-haiku",
+                'synthesis_model': "mistralai/mistral-medium-3.1",
+                'synthesis_prompt_template_path': "yt2telegram/prompts/synthesis_template.md",
+                'fallback_strategy': "best_summary"
+            }
         },
         'telegram_bots': [{
             'name': f"{name} Bot",
             'token_env': "TELEGRAM_BOT_TOKEN",
             'chat_id_env': f"{safe_name.upper()}_CHAT_ID"
         }],
-        'subtitles': ["en"]
+        'subtitles': subtitles
     }
 
-def main():
-    if len(sys.argv) != 2:
-        print("Usage: python add_channel_smart.py <channel_id>")
-        print("Example: python add_channel_smart.py UCbfYPyITQ-7l4upoX8nvctg")
-        sys.exit(1)
+def process_channel(channel_id: str, analyzer: ChannelAnalyzer, prompt_generator: PromptGenerator) -> bool:
+    """Process a single channel and create its configuration"""
+    print(f"\n{'='*60}")
+    print(f"Processing: {channel_id}")
+    print('='*60)
     
-    channel_id = sys.argv[1]
-    
-    print("🧠 Smart YouTube Channel Setup Tool")
-    print("=" * 50)
-    
-    # Analyze channel with AI
-    analyzer = ChannelAnalyzer()
+    # Get channel info
     channel_info = analyzer.get_channel_info(channel_id)
-    
     if not channel_info:
-        print("❌ Failed to fetch channel data")
-        sys.exit(1)
+        print(f"❌ Failed to fetch channel data for {channel_id}")
+        return False
     
+    # Analyze with AI
     analysis = analyzer.analyze_with_ai(channel_info)
     
     print(f"\n📊 AI Analysis Results:")
-    print(f"   Background: {analysis.get('creator_background', 'Unknown')[:100]}...")
+    print(f"   Background: {analysis.get('creator_background', 'Unknown')[:80]}...")
     print(f"   Themes: {', '.join(analysis.get('content_themes', []))}")
     print(f"   Style: {analysis.get('tone_and_personality', 'Unknown')[:50]}...")
-    print(f"   Strengths: {analysis.get('key_strengths', 'Unknown')[:50]}...")
     
-    # Generate AI-powered personalized prompt
-    prompt_generator = PromptGenerator()
+    # Generate personalized prompt
     prompt_content = prompt_generator.generate_prompt(channel_info, analysis)
     
     # Create configuration
     config = create_channel_config(channel_info, analysis)
-    # Create clean safe name: replace spaces/special chars with single underscore, remove consecutive underscores
     safe_name = re.sub(r'[^a-zA-Z0-9]+', '_', channel_info['name'].lower()).strip('_')
     
     # Create directories
@@ -354,8 +388,8 @@ def main():
     
     # Save files
     config_path = f"yt2telegram/channels/{safe_name}.yml"
-    with open(config_path, 'w') as f:
-        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+    with open(config_path, 'w', encoding='utf-8') as f:
+        yaml.dump(config, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
     
     prompt_path = f"yt2telegram/prompts/{safe_name}_summary.md"
     with open(prompt_path, 'w', encoding='utf-8') as f:
@@ -363,19 +397,73 @@ def main():
     
     # Update .env
     env_var = f"{safe_name.upper()}_CHAT_ID"
-    with open(".env", 'a') as f:
-        f.write(f'\n{env_var}="YOUR_CHAT_ID_HERE"  # Update with chat ID for {channel_info["name"]}\n')
+    with open(".env", 'a', encoding='utf-8') as f:
+        f.write(f'\n{env_var}="109500595"  # {channel_info["name"]}\n')
     
-    print(f"\n✅ Smart setup complete!")
-    print(f"📁 Configuration: {config_path}")
-    print(f"📝 Personalized prompt: {prompt_path}")
-    print(f"📧 Added {env_var} to .env")
-    print(f"\n🎯 Detected: {analysis.get('content_themes', ['general'])[0]} channel")
-    print(f"🎨 Style: {analysis.get('unique_style', 'Professional')[:60]}...")
+    print(f"\n✅ Setup complete for {channel_info['name']}!")
+    print(f"   📁 Config: {config_path}")
+    print(f"   📝 Prompt: {prompt_path}")
+    print(f"   📧 Added {env_var} to .env")
     
+    return True
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python add_channel_smart.py <channel_id> [channel_id2] [channel_id3] ...")
+        print("Examples:")
+        print("  Single:   python add_channel_smart.py UCbfYPyITQ-7l4upoX8nvctg")
+        print("  Multiple: python add_channel_smart.py UCbfYPyITQ-7l4upoX8nvctg UCGq-a57w-aPwyi3pW7XLiHw")
+        sys.exit(1)
+    
+    channel_ids = sys.argv[1:]
+    
+    print("🧠 Smart YouTube Channel Setup Tool")
+    print("=" * 60)
+    print(f"📋 Processing {len(channel_ids)} channel(s)")
+    
+    # Quick preview of all channels
+    if len(channel_ids) > 1:
+        print("\n🔍 Quick channel lookup:")
+        analyzer = ChannelAnalyzer()
+        for i, channel_id in enumerate(channel_ids, 1):
+            channel_name = analyzer.get_channel_name(channel_id)
+            if channel_name:
+                print(f"   {i}. {channel_id}: {channel_name}")
+            else:
+                print(f"   {i}. {channel_id}: ⚠️ Could not fetch name")
+        
+        print(f"\n{'='*60}")
+        input("Press Enter to continue with full analysis...")
+    
+    # Initialize services
+    analyzer = ChannelAnalyzer()
+    prompt_generator = PromptGenerator()
+    
+    # Process each channel
+    successful = 0
+    failed = 0
+    
+    for channel_id in channel_ids:
+        try:
+            if process_channel(channel_id, analyzer, prompt_generator):
+                successful += 1
+            else:
+                failed += 1
+        except Exception as e:
+            print(f"❌ Error processing {channel_id}: {e}")
+            failed += 1
+    
+    # Summary
+    print(f"\n{'='*60}")
+    print(f"🎉 Batch Processing Complete!")
+    print(f"   ✅ Successful: {successful}")
+    if failed > 0:
+        print(f"   ❌ Failed: {failed}")
     print(f"\n🚀 Next steps:")
-    print(f"   1. Update {env_var} in .env with your chat ID")
-    print(f"   2. Test with: python run.py")
+    print(f"   1. Review generated configs in yt2telegram/channels/")
+    print(f"   2. Review generated prompts in yt2telegram/prompts/")
+    print(f"   3. Update chat IDs in .env if needed")
+    print(f"   4. Test with: python run.py")
 
 if __name__ == "__main__":
     main()

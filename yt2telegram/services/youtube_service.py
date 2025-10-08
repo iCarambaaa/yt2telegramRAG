@@ -249,63 +249,55 @@ class YouTubeService:
         except Exception as e:
             logger.warning("Could not detect original language or subtitles, using defaults", error=str(e))
         
-        # Build smart priority list based on your requirements:
-        # 1. Original language manual subtitles (highest priority)
-        # 2. Original language auto-generated 
-        # 3. Manual CC in preferences
-        # 4. Auto-generated CC in preferences
-        priority_languages = []
+        # Build smart priority list respecting config file order:
+        # For each language in config (e.g., ["ru", "en"]):
+        # 1. Manual subtitles in that language
+        # 2. Auto-generated subtitles in that language
+        # Format: list of tuples (language_code, subtitle_type)
+        priority_list = []
         
-        # 1. Original language manual subtitles (highest priority)
-        if original_language in available_subtitles.get('manual', {}):
-            priority_languages.append(original_language)
-            logger.info("Found manual subtitles in original language", language=original_language)
-        
-        # 2. Original language auto-generated
-        if original_language in available_subtitles.get('auto', {}):
-            priority_languages.append(original_language)
-            logger.info("Found auto-generated subtitles in original language", language=original_language)
-        
-        # 3. Manual CC in user preferences
+        # Process each preference language in order from config
         for pref in (subtitle_preferences or ["en"]):
-            if pref in available_subtitles.get('manual', {}) and pref not in [original_language]:
-                priority_languages.append(pref)
+            # Add manual subtitles for this language if available
+            if pref in available_subtitles.get('manual', {}):
+                priority_list.append((pref, 'manual'))
                 logger.info("Found manual subtitles in preference language", language=pref)
-        
-        # 4. Auto-generated CC in user preferences  
-        for pref in (subtitle_preferences or ["en"]):
-            if pref in available_subtitles.get('auto', {}) and pref not in priority_languages:
-                priority_languages.append(pref)
+            # Add auto-generated for this language if available
+            if pref in available_subtitles.get('auto', {}):
+                priority_list.append((pref, 'auto'))
                 logger.info("Found auto-generated subtitles in preference language", language=pref)
         
         # Fallback: try any available languages
+        added_langs = {lang for lang, _ in priority_list}
         for lang in available_subtitles.get('manual', {}):
-            if lang not in priority_languages:
-                priority_languages.append(lang)
+            if lang not in added_langs:
+                priority_list.append((lang, 'manual'))
+                added_langs.add(lang)
         
         for lang in available_subtitles.get('auto', {}):
-            if lang not in priority_languages:
-                priority_languages.append(lang)
+            if lang not in added_langs:
+                priority_list.append((lang, 'auto'))
+                added_langs.add(lang)
         
-        logger.info("Subtitle priority order", priority_languages=priority_languages, original_language=original_language)
+        logger.info("Subtitle priority order", priority_list=[(lang, typ) for lang, typ in priority_list], original_language=original_language)
         
         # If no priority languages available, log the issue clearly
-        if not priority_languages:
+        if not priority_list:
             logger.error("No subtitle languages available for video", video_id=video_id, 
                         available_manual=list(available_subtitles.get('manual', {}).keys()),
                         available_auto=list(available_subtitles.get('auto', {}).keys()))
             return None
         
-        # Try each language in priority order until we find one
+        # Try each (language, type) combination in priority order until we find one
         for attempt in range(self.retry_attempts):
             try:
-                for lang in priority_languages:
-                    logger.info("Trying to download subtitles", language=lang, attempt=attempt + 1)
+                for lang, sub_type in priority_list:
+                    logger.info("Trying to download subtitles", language=lang, subtitle_type=sub_type, attempt=attempt + 1)
                     
-                    # Download only this specific language
+                    # Download only this specific language and type
                     ydl_opts = {
-                        "writesubtitles": True,
-                        "writeautomaticsub": True,
+                        "writesubtitles": (sub_type == 'manual'),  # Only write manual if that's what we want
+                        "writeautomaticsub": (sub_type == 'auto'),  # Only write auto if that's what we want
                         "subtitleslangs": [lang],  # Only try one language at a time
                         "subtitlesformat": "vtt",
                         "skip_download": True,

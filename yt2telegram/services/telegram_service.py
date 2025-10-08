@@ -250,6 +250,12 @@ class TelegramService:
         for part_index, summary_part in enumerate(summary_parts):
             part_success = False
             
+<<<<<<< Updated upstream
+=======
+            # Use consistent header (part numbering is handled in the summary content itself)
+            part_header = header
+            
+>>>>>>> Stashed changes
             # Primary Approach: Convert markdown-style to clean HTML
             try:
                 # Convert the LLM's markdown-style output to clean HTML
