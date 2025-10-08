@@ -82,6 +82,7 @@ class ChannelConfig:
     @classmethod
     def from_yaml(cls, config_path: str) -> 'ChannelConfig':
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         """Load and validate channel configuration from YAML file with comprehensive error handling.
         
         Factory method that safely loads YAML configuration files and converts
@@ -116,6 +117,10 @@ class ChannelConfig:
             - Backward compatibility maintained with existing YAML formats
         """
         with open(config_path, 'r') as f:
+=======
+        """Load channel config from YAML file"""
+        with open(config_path, 'r', encoding='utf-8') as f:
+>>>>>>> Stashed changes
 =======
         """Load channel config from YAML file"""
         with open(config_path, 'r', encoding='utf-8') as f:

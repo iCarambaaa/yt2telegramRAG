@@ -251,7 +251,10 @@ class TelegramService:
             part_success = False
             
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
             # Use consistent header (part numbering is handled in the summary content itself)
             part_header = header
             
