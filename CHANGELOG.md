@@ -1,5 +1,56 @@
 # Changelog
 
+## [2.5.0] - 2025-10-13
+
+### 📊 **Persistent File Logging System**
+- **Automatic log files**: Every run now creates a timestamped log file in `logs/` directory
+- **No CLI commands needed**: Logging happens automatically without any additional setup
+- **Dual output**: Logs appear both in console (with Rich formatting) and in files
+- **UTF-8 encoding**: Proper handling of multi-language content in log files
+- **Shared file handler**: Single log file per run across all loggers for consistency
+
+### 🔍 **Comprehensive Log Analysis Tool**
+- **Reusable analyzer**: `analyze_log.py` for detailed log file analysis
+- **Multiple modes**: 
+  - Analyze latest log (default)
+  - Analyze specific log file
+  - List all available logs
+  - Analyze all logs interactively
+- **Rich statistics**: Overall stats, per-channel breakdown, model usage, costs, performance
+- **Run duration tracking**: Shows actual wall-clock time from first to last log entry
+- **Language support analysis**: Tracks which languages were processed
+- **Issue detection**: Identifies members-only content, errors, and warnings
+
+### ⏱️ **Enhanced Time Tracking**
+- **Total run duration**: Calculates actual time from start to finish of run
+- **Per-video metrics**: Average, min, max processing times for individual videos
+- **Overhead visibility**: Shows difference between total run time and video processing time
+- **Timestamp extraction**: Parses log timestamps for accurate duration calculation
+
+### 🐛 **Bug Fixes**
+- **Anton Petrov config**: Fixed multi_model configuration issue (verified working with single-model)
+- **Windows emoji support**: Fixed Unicode encoding errors in console output
+- **Log file discovery**: Robust file finding with proper error handling
+
+### 📚 **Documentation**
+- **Log analysis guide**: Complete `logs/README.md` with usage examples
+- **Test run findings**: Comprehensive `TEST_RUN_FINDINGS.md` with full system analysis
+- **Tool documentation**: Built-in help with `--help` flag
+
+### 🔧 **Technical Improvements**
+- **Global file handler**: Prevents duplicate log entries across multiple loggers
+- **Timestamp-based naming**: Log files named `run_YYYY-MM-DD_HH-MM-SS.log`
+- **Automatic directory creation**: `logs/` directory created if it doesn't exist
+- **Cross-platform compatibility**: Works on Windows, Linux, and macOS
+- **Detailed formatting**: File logs include full context with timestamps and log levels
+
+### ✅ **System Validation**
+- **Full test run completed**: All 15 channels processed successfully
+- **100% success rate**: 11 new videos processed without errors
+- **Multi-model verified**: 100% completion rate for multi-model pipeline
+- **Cost tracking validated**: Average $0.024 per video, total $0.26 for 11 videos
+- **Multi-language confirmed**: English, Russian, German all working perfectly
+
 ## [2.4.0] - 2025-10-08
 
 ### 🔐 **Members-Only Content Detection**

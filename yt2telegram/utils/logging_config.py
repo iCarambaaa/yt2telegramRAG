@@ -3,6 +3,8 @@ import sys
 import os
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
 
 try:
     from rich.console import Console
@@ -13,6 +15,11 @@ try:
 except ImportError:
     RICH_AVAILABLE = False
     import logging as fallback_log
+
+
+# Global variable to track if file handler has been initialized
+_file_handler_initialized = False
+_log_file_path = None
 
 
 @dataclass
@@ -38,6 +45,43 @@ class StructuredLogger:
         else:
             # Fallback to standard Python logging
             self._setup_fallback_logging()
+    
+    def _get_or_create_file_handler(self, log_level):
+        """Get or create a shared file handler for all loggers"""
+        global _file_handler_initialized, _log_file_path
+        
+        if not _file_handler_initialized:
+            # Create logs directory if it doesn't exist
+            log_dir = Path("logs")
+            log_dir.mkdir(exist_ok=True)
+            
+            # Create log filename with timestamp
+            timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+            _log_file_path = log_dir / f"run_{timestamp}.log"
+            
+            # Create file handler
+            file_handler = logging.FileHandler(_log_file_path, encoding='utf-8')
+            file_handler.setLevel(getattr(logging, log_level, logging.INFO))
+            
+            # Use detailed format for file logs
+            file_formatter = logging.Formatter(
+                fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            file_handler.setFormatter(file_formatter)
+            
+            _file_handler_initialized = True
+            return file_handler
+        else:
+            # Return existing file handler
+            file_handler = logging.FileHandler(_log_file_path, encoding='utf-8')
+            file_handler.setLevel(getattr(logging, log_level, logging.INFO))
+            file_formatter = logging.Formatter(
+                fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            file_handler.setFormatter(file_formatter)
+            return file_handler
     
     def _setup_rich_logging(self):
         """Setup Rich logging configuration"""
@@ -101,6 +145,11 @@ class StructuredLogger:
             ))
             self._rich_logger.addHandler(rich_handler)
             self._rich_logger.propagate = False
+        
+        # Add file handler (only once per logger)
+        if not any(isinstance(h, logging.FileHandler) for h in self._rich_logger.handlers):
+            file_handler = self._get_or_create_file_handler(log_level)
+            self._rich_logger.addHandler(file_handler)
     
     def _setup_fallback_logging(self):
         """Setup fallback standard logging"""
@@ -117,7 +166,13 @@ class StructuredLogger:
         
         log_level = os.getenv('LOG_LEVEL', self.level).lower()
         self._fallback_logger.setLevel(level_map.get(log_level, logging.INFO))
+        
+        # Add file handler for fallback logging too
+        if not any(isinstance(h, logging.FileHandler) for h in self._fallback_logger.handlers):
+            file_handler = self._get_or_create_file_handler(log_level.upper())
+            self._fallback_logger.addHandler(file_handler)
     
+
     def _format_message(self, message: str, **kwargs) -> str:
         """Format message with context and additional fields"""
         context_parts = []
