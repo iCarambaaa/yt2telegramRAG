@@ -1,18 +1,7 @@
 # yt2telegram/channels/example_channel.yml
 # 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-# TEMPLATE FILE - This file is automatically skipped during production runs
-# Use this as a template to create your own channel configurations
-#
-=======
 # EXAMPLE/TEMPLATE FILE - Automatically skipped during production runs
 # Copy this file and customize it for your channel
->>>>>>> Stashed changes
-=======
-# EXAMPLE/TEMPLATE FILE - Automatically skipped during production runs
-# Copy this file and customize it for your channel
->>>>>>> Stashed changes
 
 # General Channel Information
 name: "Example Channel"
@@ -32,22 +21,9 @@ llm_config:
   llm_base_url: "https://openrouter.ai/api/v1"
   llm_prompt_template_path: "yt2telegram/prompts/example_summary.md"
   
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-  # Creator context for maintaining voice and style consistency in AI summaries
+  # Creator context helps maintain the channel's unique voice and style
   # This replaces hardcoded channel-specific logic with configuration-driven approach
   creator_context: "Example Channel - Educational content creator with clear explanations and engaging presentation style"
-  
-  # Message formatting configuration (future enhancement)
-  # Currently uses generic formatting, but could be extended to support:
-  # message_header: "📺 New Video from {channel_name}"
-  # message_footer: ""  # Optional hashtags or additional info
-  # header_emoji: "📺"  # Custom emoji for this channel
-=======
-=======
->>>>>>> Stashed changes
-  # Creator context helps maintain the channel's unique voice
-  creator_context: "Example Channel - Description of creator's style and content focus"
   
   # Multi-Model Configuration (Optional - Enhanced Quality)
   # Enables three-stage pipeline: Primary → Secondary → Synthesis
@@ -58,10 +34,6 @@ llm_config:
     synthesis_model: "mistralai/mistral-medium-3.1" # High-quality synthesis
     synthesis_prompt_template_path: "yt2telegram/prompts/synthesis_template.md"
     fallback_strategy: "best_summary" # Options: "best_summary" or "primary_summary"
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 
 # Telegram Bot Configuration
 telegram_bots:
