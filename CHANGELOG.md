@@ -51,6 +51,29 @@
 - **Cost tracking validated**: Average $0.024 per video, total $0.26 for 11 videos
 - **Multi-language confirmed**: English, Russian, German all working perfectly
 
+## [2.4.1] - 2025-10-08
+
+### 📊 **New Aggregate Log Analyzer**
+- **Separate tool**: `analyze_aggregate.py` for sophisticated multi-log analysis
+- **Intelligent aggregation**: No duplicates, proper deduplication
+- **New channel detection**: Tracks when channels join with exact dates
+- **Model switch tracking**: Detects channels that change between single/multi-model
+- **Smart error reporting**: Shows each error once with occurrence count
+- **Accurate projections**: Based on actual processing rate, not fixed assumptions
+
+### 📈 **Enhanced Analysis Features**
+- **Distinct vs total**: Shows both unique channels and total runs
+- **Aggregated per-channel stats**: Cumulative stats across all runs
+- **Clean language support**: Filters out boolean values, shows percentages
+- **Average run duration**: Tracks processing time across multiple runs
+- **Cost analysis**: Daily and monthly projections from real data
+- **Error frequency**: Sorted by occurrence, full message shown once
+
+### 🔧 **Original Analyzer Preserved**
+- **analyze_log.py**: Unchanged, still works for single-file analysis
+- **Backward compatible**: All existing commands work as before
+- **Two tools**: Use basic for details, aggregate for trends
+
 ## [2.4.0] - 2025-10-08
 
 ### 🔐 **Members-Only Content Detection**

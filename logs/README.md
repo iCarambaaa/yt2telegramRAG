@@ -32,6 +32,36 @@ python analyze_log.py --all
 python analyze_log.py --help
 ```
 
+### Time-Based Aggregate Analysis
+
+For analyzing multiple logs over time periods, use the **aggregate analyzer**:
+
+```bash
+# Analyze logs from last 3 days (aggregate)
+python analyze_aggregate.py --last3
+
+# Analyze logs from last 7 days (aggregate)
+python analyze_aggregate.py --last7
+
+# Analyze logs from last 30 days (aggregate)
+python analyze_aggregate.py --last30
+
+# Analyze logs from last 365 days (aggregate)
+python analyze_aggregate.py --last365
+```
+
+The aggregate analyzer provides:
+- Combined statistics across all runs
+- Distinct vs total channel counts
+- New channel detection with join dates
+- Aggregated per-channel stats (no duplicates)
+- Model switch tracking
+- Cost projections based on actual processing rate
+- Error frequency analysis
+- Daily averages and trends
+
+See `AGGREGATE_ANALYZER_GUIDE.md` for complete documentation.
+
 ### What It Analyzes
 
 The tool provides comprehensive analysis including:

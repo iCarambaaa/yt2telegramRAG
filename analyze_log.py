@@ -64,7 +64,7 @@ def list_logs():
         else:
             timestamp = "Unknown"
         
-        marker = "📍 LATEST" if i == 1 else f"   #{i}"
+        marker = "LATEST" if i == 1 else f"   #{i}"
         print(f"{marker} {log_file.name}")
         print(f"      Run: {timestamp}")
         print(f"      Size: {file_size:,} bytes ({file_size/1024:.1f} KB)")
@@ -330,7 +330,7 @@ def main():
     else:
         # Analyze latest log file
         log_path = find_latest_log()
-        print(f"📍 Analyzing latest log file...\n")
+        print(f"Analyzing latest log file...\n")
         content = analyze_log(log_path)
         print_analysis(content, log_path)
 
