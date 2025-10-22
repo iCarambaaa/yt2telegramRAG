@@ -331,20 +331,10 @@ Create a comprehensive final summary that combines the best insights from both s
             logger.warning("Empty content provided for summarization")
             return "No content to summarize", {}
 
-        # Performance optimization: intelligent content truncation
-        # ADR: Content length limit decision
-        # Decision: 50k character limit with truncation
-        # Context: Balance between content completeness and API token limits
-        # Consequences: Some long-form content loses tail information
-        # Alternatives: Chunking (rejected - complexity), Dynamic limits (rejected - unpredictable costs)
-        max_content_chars = 50000
-        if len(content) > max_content_chars:
-            logger.info("Content too long, truncating", 
-                       content_length=len(content), 
-                       max_chars=max_content_chars,
-                       model=model)
-            # Preserve beginning of content - typically contains most important information
-            content = content[:max_content_chars] + "...\n\n[Content truncated due to length]"
+        # No content truncation - process full content regardless of length
+        logger.info("Processing full content without truncation", 
+                   content_length=len(content), 
+                   model=model)
 
         prompt = self.prompt_template.format(content=content)
         logger.info("Generating summary", 
@@ -358,7 +348,6 @@ Create a comprehensive final summary that combines the best insights from both s
                 {"role": "system", "content": "You are an expert content analyst who creates comprehensive, detailed summaries while preserving the original author's voice and style."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=2000,
             temperature=0.7
         )
         
@@ -407,7 +396,7 @@ Create a comprehensive final summary that combines the best insights from both s
         synthesis_prompt = self.synthesis_template.format(
             summary_a=summary_a,
             summary_b=summary_b,
-            original_content=original_content[:10000],  # Limit original content for synthesis
+            original_content=original_content,  # Full original content for synthesis
             model_a=self.primary_model,
             model_b=self.secondary_model,
             creator_context=self._get_creator_context()
@@ -419,7 +408,6 @@ Create a comprehensive final summary that combines the best insights from both s
                 {"role": "system", "content": "You are an expert synthesis specialist who combines multiple AI summaries into the highest quality final summary possible."},
                 {"role": "user", "content": synthesis_prompt}
             ],
-            max_tokens=3000,  # Allow more tokens for synthesis
             temperature=0.5   # Lower temperature for more consistent synthesis
         )
         
@@ -543,42 +531,8 @@ Create a comprehensive final summary that combines the best insights from both s
         usage_data = {}
         
         try:
-            # Cost control: estimate token usage before processing
-            # ADR: Token estimation strategy
-            # Decision: Use 4:1 character to token ratio for estimation
-            # Context: Need fast cost estimation without API calls
-            # Consequences: ~20% estimation error acceptable for cost control
-            # Alternatives: API-based estimation (rejected - adds latency and cost)
-            estimated_tokens = len(content) // 4
-            
-            # AI-DECISION: Cost threshold enforcement
-            # Criteria: estimated_tokens > threshold → activate fallback strategy
-            # This is a critical business rule - prevents budget overruns
-            if estimated_tokens > self.cost_threshold_tokens:
-                logger.warning("Content exceeds cost threshold, using fallback strategy",
-                             estimated_tokens=estimated_tokens,
-                             threshold=self.cost_threshold_tokens,
-                             fallback_strategy=self.fallback_strategy)
-                
-                result['fallback_used'] = True
-                result['summarization_method'] = 'fallback'
-                
-                if self.fallback_strategy == "primary_summary":
-                    fallback_summary, usage_info = self._generate_single_summary(content, self.primary_model, "fallback_primary")
-                    result['final_summary'] = fallback_summary
-                    result['primary_summary'] = fallback_summary
-                    usage_data['primary'] = usage_info
-                else:  # best_summary
-                    fallback_summary, usage_info = self._generate_single_summary(content, self.synthesis_model, "fallback_best")
-                    result['final_summary'] = fallback_summary
-                    result['synthesis_summary'] = fallback_summary
-                    usage_data['synthesis'] = usage_info
-                
-                # Calculate cost and finalize result
-                result['cost_estimate'] = self._calculate_cost_estimate(usage_data)
-                result['token_usage_json'] = json.dumps(usage_data)
-                result['processing_time_seconds'] = time.time() - start_time
-                return result
+            # No cost threshold - always use full multi-model pipeline
+            logger.info("Processing with full multi-model pipeline (no cost limits)")
             
             # Generate primary summary
             logger.info("Starting multi-model summarization", 

@@ -83,6 +83,12 @@ def analyze_aggregate(log_files: List[Path], time_period: int):
         'failed': 0
     })
     
+    # Single video processing tracking
+    single_video_count = 0
+    single_video_successful = 0
+    single_video_failed = 0
+    single_video_details: List[Dict] = []  # Detailed info per video
+    
     # Model tracking per channel
     channel_models: Dict[str, List[Tuple[datetime, str]]] = defaultdict(list)
     
@@ -110,7 +116,101 @@ def analyze_aggregate(log_files: List[Path], time_period: int):
         with open(log_file, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # Extract channels processed in this run
+        # Detect log type
+        is_single_video = 'Starting single video processing' in content
+        
+        if is_single_video:
+            # Process single video log
+            single_video_count += 1
+            
+            # Extract detailed video information
+            video_details = {
+                'date': log_date,
+                'video_id': None,
+                'title': None,
+                'channel_id': None,
+                'language': None,
+                'subtitle_size': None,
+                'cleaned_size': None,
+                'compression_ratio': None,
+                'summary_length': None,
+                'processing_time': None,
+                'model': None,
+                'multi_model': False,
+                'cost': None,
+                'success': False
+            }
+            
+            # Extract video ID
+            video_id_match = re.search(r'Processing video \[video_id=([^,]+)', content)
+            if video_id_match:
+                video_details['video_id'] = video_id_match.group(1)
+            
+            # Extract title
+            title_match = re.search(r'title=([^,\]]+?)(?:,|\])', content)
+            if title_match:
+                video_details['title'] = title_match.group(1).strip()
+            
+            # Extract channel ID
+            channel_match = re.search(r'channel_id=([^,\]]+)', content)
+            if channel_match:
+                video_details['channel_id'] = channel_match.group(1)
+            
+            # Extract language
+            lang_match = re.search(r'original_language=(\w+)', content)
+            if lang_match:
+                video_details['language'] = lang_match.group(1)
+            
+            # Extract subtitle sizes
+            raw_size_match = re.search(r'raw_size=(\d+)', content)
+            if raw_size_match:
+                video_details['subtitle_size'] = int(raw_size_match.group(1))
+            
+            cleaned_size_match = re.search(r'cleaned_size=(\d+)', content)
+            if cleaned_size_match:
+                video_details['cleaned_size'] = int(cleaned_size_match.group(1))
+            
+            compression_match = re.search(r'compression_ratio=([\d.]+)%', content)
+            if compression_match:
+                video_details['compression_ratio'] = float(compression_match.group(1))
+            
+            # Extract summary length
+            summary_match = re.search(r'summary_length=(\d+)', content)
+            if summary_match:
+                video_details['summary_length'] = int(summary_match.group(1))
+            
+            # Extract processing time
+            proc_time_match = re.search(r'processing_time_seconds=([\d.]+)', content)
+            if proc_time_match:
+                video_details['processing_time'] = float(proc_time_match.group(1))
+            
+            # Extract model info
+            if 'Multi-model processing enabled' in content:
+                video_details['multi_model'] = True
+                model_match = re.search(r'synthesis_model=([^,\]]+)', content)
+                if model_match:
+                    video_details['model'] = model_match.group(1)
+            elif 'Single-model processing enabled' in content:
+                model_match = re.search(r'model=([^,\]]+)', content)
+                if model_match:
+                    video_details['model'] = model_match.group(1)
+            
+            # Extract cost
+            cost_match = re.search(r'cost_estimate=([\d.]+)', content)
+            if cost_match:
+                video_details['cost'] = float(cost_match.group(1))
+            
+            # Check success/failure
+            if 'Video processing completed successfully' in content:
+                single_video_successful += 1
+                video_details['success'] = True
+            elif 'Video processing failed' in content:
+                single_video_failed += 1
+                video_details['success'] = False
+            
+            single_video_details.append(video_details)
+        
+        # Extract channels processed in this run (channel monitoring)
         for match in re.finditer(r'Processing channel \[channel_name=([^,]+)', content):
             channel_name = match.group(1)
             all_channels.add(channel_name)
@@ -177,7 +277,8 @@ def analyze_aggregate(log_files: List[Path], time_period: int):
         all_channels, channel_first_seen, channel_stats, channel_models,
         all_costs, all_processing_times, run_durations, error_counts,
         error_examples, language_counts, members_only_count,
-        days_covered, oldest, newest, log_files, time_period, len(log_files)
+        days_covered, oldest, newest, log_files, time_period, len(log_files),
+        single_video_count, single_video_successful, single_video_failed, single_video_details
     )
 
 
@@ -185,7 +286,8 @@ def print_aggregate_analysis(
     all_channels, channel_first_seen, channel_stats, channel_models,
     all_costs, all_processing_times, run_durations, error_counts,
     error_examples, language_counts, members_only_count,
-    days_covered, oldest, newest, log_files, time_period, log_count
+    days_covered, oldest, newest, log_files, time_period, log_count,
+    single_video_count, single_video_successful, single_video_failed, single_video_details
 ):
     """Print comprehensive aggregate analysis"""
     
@@ -218,9 +320,87 @@ def print_aggregate_analysis(
     print(f"Total new videos found: {total_new_videos}")
     print(f"Successfully delivered: {total_videos_successful}")
     print(f"Failed/Skipped: {total_videos_failed}")
-    print(f"  └─ Members-only detected: {members_only_count}")
+    print(f"  └─ Members-only detections: {members_only_count} (may include duplicates across runs)")
     print(f"Videos fully processed: {total_videos_processed}")
     print()
+    
+    # Single video processing statistics
+    if single_video_count > 0:
+        print("SINGLE VIDEO PROCESSING")
+        print("-" * 80)
+        print(f"Total single video runs: {single_video_count}")
+        print(f"Successful: {single_video_successful}")
+        print(f"Failed: {single_video_failed}")
+        print()
+        
+        # Detailed breakdown
+        if single_video_details:
+            print("Detailed Video Breakdown:")
+            print()
+            for i, video in enumerate(single_video_details, 1):
+                status = "[SUCCESS]" if video['success'] else "[FAILED]"
+                print(f"{i}. {status} {video['date'].strftime('%Y-%m-%d %H:%M')}")
+                if video['title']:
+                    # Truncate long titles
+                    title = video['title'][:70] + "..." if len(video['title']) > 70 else video['title']
+                    print(f"   Title: {title}")
+                if video['video_id']:
+                    print(f"   Video ID: {video['video_id']}")
+                if video['channel_id']:
+                    print(f"   Channel: {video['channel_id']}")
+                if video['language']:
+                    print(f"   Language: {video['language']}")
+                if video['subtitle_size'] and video['cleaned_size']:
+                    print(f"   Subtitles: {video['subtitle_size']:,} -> {video['cleaned_size']:,} bytes ({video['compression_ratio']:.1f}% compression)")
+                if video['summary_length']:
+                    print(f"   Summary: {video['summary_length']:,} characters")
+                if video['processing_time']:
+                    print(f"   Processing time: {video['processing_time']:.1f}s")
+                if video['model']:
+                    model_type = "Multi-model" if video['multi_model'] else "Single-model"
+                    print(f"   Model: {model_type} ({video['model']})")
+                if video['cost']:
+                    print(f"   Cost: ${video['cost']:.4f}")
+                print()
+        
+        # Summary statistics
+        successful_videos = [v for v in single_video_details if v['success']]
+        if successful_videos:
+            print("Summary Statistics (Successful Videos):")
+            
+            # Language distribution
+            languages = [v['language'] for v in successful_videos if v['language']]
+            if languages:
+                lang_counts = {}
+                for lang in languages:
+                    lang_counts[lang] = lang_counts.get(lang, 0) + 1
+                print(f"  Languages: {', '.join(f'{lang}({count})' for lang, count in sorted(lang_counts.items()))}")
+            
+            # Average compression
+            compressions = [v['compression_ratio'] for v in successful_videos if v['compression_ratio']]
+            if compressions:
+                avg_compression = sum(compressions) / len(compressions)
+                print(f"  Avg compression: {avg_compression:.1f}%")
+            
+            # Average processing time
+            proc_times = [v['processing_time'] for v in successful_videos if v['processing_time']]
+            if proc_times:
+                avg_time = sum(proc_times) / len(proc_times)
+                print(f"  Avg processing time: {avg_time:.1f}s")
+            
+            # Total cost
+            costs = [v['cost'] for v in successful_videos if v['cost']]
+            if costs:
+                total_cost = sum(costs)
+                avg_cost = total_cost / len(costs)
+                print(f"  Total cost: ${total_cost:.4f} (avg: ${avg_cost:.4f})")
+            
+            # Model usage
+            multi_model_count = sum(1 for v in successful_videos if v['multi_model'])
+            single_model_count = len(successful_videos) - multi_model_count
+            print(f"  Model usage: {multi_model_count} multi-model, {single_model_count} single-model")
+        
+        print()
     
     # New channels
     print("NEW CHANNELS")

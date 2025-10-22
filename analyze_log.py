@@ -77,9 +77,22 @@ def analyze_log(log_path):
     try:
         with open(log_path, 'r', encoding='utf-8') as f:
             content = f.read()
+        
+        # Detect log type
+        is_single_video = 'Starting single video processing' in content
+        is_channel_monitoring = 'Processing channel' in content
+        
+        if is_single_video:
+            print("[SINGLE VIDEO] Log Type: Single Video Processing")
+        elif is_channel_monitoring:
+            print("[CHANNEL] Log Type: Channel Monitoring")
+        else:
+            print("[UNKNOWN] Log Type: Unknown")
+        print()
+        
         return content
     except Exception as e:
-        print(f"❌ Error reading log file: {e}")
+        print(f"[ERROR] Error reading log file: {e}")
         sys.exit(1)
 
 
@@ -109,39 +122,145 @@ def print_analysis(content, log_path):
     print(f"File Size: {file_size:,} bytes ({file_size/1024:.1f} KB)")
     print()
 
-    # Overall statistics
-    print("OVERALL STATISTICS")
-    print("-" * 80)
-    total_channels = len(re.findall(r'Processing channel \[channel_name=([^,]+)', content))
-    videos_processed = len(re.findall(r'Successfully processed and sent video', content))
-    videos_skipped = len(re.findall(r'Video already processed, skipping', content))
-    members_only = len(re.findall(r'members-only', content))
-    single_model_init = len(re.findall(r'Initializing single-model LLM service', content))
-    multi_model_init = len(re.findall(r'Initializing multi-model LLM service', content))
-    multi_model_complete = len(re.findall(r'Multi-model summarization completed', content))
+    # Detect log type
+    is_single_video = 'Starting single video processing' in content
+    is_channel_monitoring = 'Processing channel' in content
+    
+    # Initialize variables that might be used later
+    videos_processed = 0
+    
+    if is_single_video:
+        # Single video processing analysis
+        print("SINGLE VIDEO PROCESSING ANALYSIS")
+        print("-" * 80)
+        
+        # Extract video details
+        video_id_match = re.search(r'Processing video \[video_id=([^,]+)', content)
+        video_id = video_id_match.group(1) if video_id_match else "Unknown"
+        
+        title_match = re.search(r'title=([^,\]]+?)(?:,|\])', content)
+        title = title_match.group(1).strip() if title_match else "Unknown"
+        
+        channel_match = re.search(r'channel_id=([^,\]]+)', content)
+        channel_id = channel_match.group(1) if channel_match else "Unknown"
+        
+        lang_match = re.search(r'original_language=(\w+)', content)
+        language = lang_match.group(1) if lang_match else "Unknown"
+        
+        print(f"Video ID: {video_id}")
+        print(f"Title: {title}")
+        print(f"Channel ID: {channel_id}")
+        print(f"Language: {language}")
+        print()
+        
+        # Subtitle processing
+        raw_size_match = re.search(r'raw_size=(\d+)', content)
+        cleaned_size_match = re.search(r'cleaned_size=(\d+)', content)
+        compression_match = re.search(r'compression_ratio=([\d.]+)%', content)
+        
+        if raw_size_match and cleaned_size_match:
+            raw_size = int(raw_size_match.group(1))
+            cleaned_size = int(cleaned_size_match.group(1))
+            compression = compression_match.group(1) if compression_match else "N/A"
+            print(f"Subtitle Processing:")
+            print(f"  Raw size: {raw_size:,} bytes ({raw_size/1024:.1f} KB)")
+            print(f"  Cleaned size: {cleaned_size:,} bytes ({cleaned_size/1024:.1f} KB)")
+            print(f"  Compression: {compression}%")
+            print()
+        
+        # Summary generation
+        summary_match = re.search(r'summary_length=(\d+)', content)
+        if summary_match:
+            summary_length = int(summary_match.group(1))
+            print(f"Summary: {summary_length:,} characters")
+            print()
+        
+        # Model information
+        if 'Multi-model processing enabled' in content:
+            primary_match = re.search(r'primary_model=([^,\]]+)', content)
+            secondary_match = re.search(r'secondary_model=([^,\]]+)', content)
+            synthesis_match = re.search(r'synthesis_model=([^,\]]+)', content)
+            
+            print("Model Configuration: Multi-model")
+            if primary_match:
+                print(f"  Primary: {primary_match.group(1)}")
+            if secondary_match:
+                print(f"  Secondary: {secondary_match.group(1)}")
+            if synthesis_match:
+                print(f"  Synthesis: {synthesis_match.group(1)}")
+            print()
+        elif 'Single-model processing enabled' in content:
+            model_match = re.search(r'model=([^,\]]+)', content)
+            if model_match:
+                print(f"Model Configuration: Single-model ({model_match.group(1)})")
+                print()
+        
+        # Processing time and cost
+        proc_time_match = re.search(r'processing_time_seconds=([\d.]+)', content)
+        cost_match = re.search(r'cost_estimate=([\d.]+)', content)
+        
+        if proc_time_match or cost_match:
+            print("Performance Metrics:")
+            if proc_time_match:
+                proc_time = float(proc_time_match.group(1))
+                print(f"  Processing time: {proc_time:.1f}s ({proc_time/60:.1f} min)")
+            if cost_match:
+                cost = float(cost_match.group(1))
+                print(f"  Estimated cost: ${cost:.4f}")
+            print()
+        
+        # Status
+        if 'Video processing completed successfully' in content:
+            print("Status: [SUCCESS] Video processed and sent to Telegram")
+        elif 'Video processing failed' in content:
+            print("Status: [FAILED] Video processing failed")
+            # Extract error if available
+            error_match = re.search(r'ERROR.*', content)
+            if error_match:
+                print(f"  Error: {error_match.group(0)[:100]}")
+        print()
+        
+    elif is_channel_monitoring:
+        # Channel monitoring analysis (existing code)
+        print("CHANNEL MONITORING ANALYSIS")
+        print("-" * 80)
+        total_channels = len(re.findall(r'Processing channel \[channel_name=([^,]+)', content))
+        videos_processed = len(re.findall(r'Successfully processed and sent video', content))
+        videos_skipped = len(re.findall(r'Video already processed, skipping', content))
+        members_only = len(re.findall(r'members-only', content))
+        single_model_init = len(re.findall(r'Initializing single-model LLM service', content))
+        multi_model_init = len(re.findall(r'Initializing multi-model LLM service', content))
+        multi_model_complete = len(re.findall(r'Multi-model summarization completed', content))
 
-    print(f"Total channels processed: {total_channels}")
-    print(f"Videos successfully processed: {videos_processed}")
-    print(f"Videos skipped (already processed): {videos_skipped}")
-    print(f"Members-only videos detected: {members_only}")
-    print(f"Single-model initializations: {single_model_init}")
-    print(f"Multi-model initializations: {multi_model_init}")
-    print(f"Multi-model completions: {multi_model_complete}")
-    print()
+        print(f"Total channels processed: {total_channels}")
+        print(f"Videos successfully processed: {videos_processed}")
+        print(f"Videos skipped (already processed): {videos_skipped}")
+        print(f"Members-only videos detected: {members_only}")
+        print(f"Single-model initializations: {single_model_init}")
+        print(f"Multi-model initializations: {multi_model_init}")
+        print(f"Multi-model completions: {multi_model_complete}")
+        print()
+    else:
+        # Unknown log type
+        print("OVERALL STATISTICS")
+        print("-" * 80)
+        print("Unable to determine log type - may be incomplete or corrupted")
+        print()
 
-    # Per-channel breakdown
-    print("PER-CHANNEL BREAKDOWN")
-    print("-" * 80)
+    # Per-channel breakdown (only for channel monitoring logs)
+    if is_channel_monitoring:
+        print("PER-CHANNEL BREAKDOWN")
+        print("-" * 80)
 
-    channel_pattern = r'Finished processing channel \[channel_name=([^,]+), processed_count=(\d+), successful_notifications=(\d+), failed_notifications=(\d+)\]'
-    channels = re.findall(channel_pattern, content)
+        channel_pattern = r'Finished processing channel \[channel_name=([^,]+), processed_count=(\d+), successful_notifications=(\d+), failed_notifications=(\d+)\]'
+        channels = re.findall(channel_pattern, content)
 
-    for channel_name, processed, successful, failed in channels:
-        status = "[OK]" if int(successful) > 0 else ("[WARN]" if int(failed) > 0 else "[SKIP]")
-        print(f"{status} {channel_name}")
-        print(f"   Processed: {processed} | Successful: {successful} | Failed: {failed}")
+        for channel_name, processed, successful, failed in channels:
+            status = "[OK]" if int(successful) > 0 else ("[WARN]" if int(failed) > 0 else "[SKIP]")
+            print(f"{status} {channel_name}")
+            print(f"   Processed: {processed} | Successful: {successful} | Failed: {failed}")
 
-    print()
+        print()
 
     # Model usage analysis
     print("MODEL USAGE ANALYSIS")
@@ -194,11 +313,20 @@ def print_analysis(content, log_path):
         print(f"Max cost: ${max(costs):.4f}")
         
         # Projected costs
-        if videos_processed > 0:
+        if is_single_video and len(costs) > 0:
+            # For single video, show cost per video
+            avg_per_video = avg_cost
+            print(f"\nProjected costs:")
+            print(f"  Per video: ${avg_per_video:.4f}")
+            print(f"  10 videos: ${avg_per_video * 10:.2f}")
+            print(f"  100 videos: ${avg_per_video * 100:.2f}")
+        elif videos_processed > 0:
+            # For channel monitoring, show daily/monthly projections
             daily_projection = (total_cost / videos_processed) * 50  # Assume 50 videos/day
             monthly_projection = daily_projection * 30
-            print(f"Projected daily cost (50 videos): ${daily_projection:.2f}")
-            print(f"Projected monthly cost: ${monthly_projection:.2f}")
+            print(f"\nProjected costs:")
+            print(f"  Daily (50 videos): ${daily_projection:.2f}")
+            print(f"  Monthly: ${monthly_projection:.2f}")
     else:
         print("No cost data found in logs")
 
@@ -266,16 +394,27 @@ def print_analysis(content, log_path):
     print("LANGUAGE SUPPORT")
     print("-" * 80)
 
-    languages = re.findall(r'original_language=(\w+)', content)
-    lang_counts = defaultdict(int)
-    for lang in languages:
-        lang_counts[lang] += 1
-
-    if lang_counts:
-        for lang, count in sorted(lang_counts.items(), key=lambda x: x[1], reverse=True):
-            print(f"  {lang}: {count} videos")
+    if is_single_video:
+        # For single video, just show the language once
+        lang_match = re.search(r'original_language=([a-z]{2,3})(?:[,\s\]])', content)
+        if lang_match:
+            print(f"  Language: {lang_match.group(1)}")
+        else:
+            print("  No language data found")
     else:
-        print("  No language data found")
+        # For channel monitoring, count languages across multiple videos
+        languages = re.findall(r'original_language=([a-z]{2,3})(?:[,\s\]])', content)
+        lang_counts = defaultdict(int)
+        for lang in languages:
+            # Filter out common false positives
+            if lang not in ['true', 'false', 'none']:
+                lang_counts[lang] += 1
+
+        if lang_counts:
+            for lang, count in sorted(lang_counts.items(), key=lambda x: x[1], reverse=True):
+                print(f"  {lang}: {count} videos")
+        else:
+            print("  No language data found")
 
     print()
     print("=" * 80)

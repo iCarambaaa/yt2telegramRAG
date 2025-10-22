@@ -3,6 +3,7 @@
 Advanced automated content monitoring and summarization system that monitors YouTube channels, generates enhanced AI-powered summaries using multi-model approach, and provides interactive QnA with channel-specific RAG conversations.
 
 **Key Features:**
+- ✅ **Single Video Processing** - Process any YouTube video on-demand without channel setup
 - ✅ **Multi-Model Summarization** - Enhanced quality through dual-model approach with intelligent synthesis
 - ✅ **Channel-Specific QnA** - RAG-powered conversations with individual channel databases
 - ✅ **Smart Channel Setup** - Automated channel analysis and configuration
@@ -17,6 +18,26 @@ Advanced automated content monitoring and summarization system that monitors You
 ---
 
 ## Quick Start
+
+### Option A: Process a Single Video (Fastest)
+
+Perfect for trying out the system or processing individual videos on-demand:
+
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Setup environment
+cp .env.example .env
+# Edit .env with your API keys
+
+# 3. Process any video
+python process_single_video.py https://www.youtube.com/watch?v=VIDEO_ID
+```
+
+### Option B: Automated Channel Monitoring
+
+For continuous monitoring of YouTube channels:
 
 ### 1. Install Dependencies
 ```bash
