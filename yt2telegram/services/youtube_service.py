@@ -121,22 +121,18 @@ class YouTubeService:
             raise ValueError(f"max_results must be between 1 and 50, got: {max_results}")
         
         # ADR: yt-dlp configuration for optimal YouTube extraction
-        # Decision: Full metadata extraction with multiple client fallback
+        # Decision: Full metadata extraction with skip_download
         # Context: Need reliable video discovery with upload dates and metadata
         # Consequences: Slower than flat extraction but provides complete data
         # Alternatives: extract_flat=True (rejected - missing upload dates)
+        # UPDATED: Simplified to use skip_download without client specification (Nov 2024)
+        
         ydl_opts = {
             "extract_flat": False,  # Get full metadata including upload_date
-            "skip_download": True,  # Only extract metadata, no video files
+            "skip_download": True,  # Skip video download entirely
             "quiet": True,  # Reduce yt-dlp logging noise
             "playlist_items": f"1-{max_results}",  # Limit API usage
-            "extractor_args": {
-                "youtube": {
-                    # Multiple client strategy: improves success rate significantly
-                    "player_client": ["web", "android"],  # Try web first, fallback to android
-                    "player_skip": ["webpage"]  # Skip webpage parsing for speed
-                }
-            }
+            "no_warnings": False,  # Show warnings for debugging
         }
 
         # Security boundary: cookie file authentication setup
@@ -208,15 +204,11 @@ class YouTubeService:
         output_path.mkdir(parents=True, exist_ok=True)
         
         # First, get video info to determine original language
+        # CRITICAL: Use skip_download to avoid format extraction issues
         info_opts = {
-            "skip_download": True,
+            "skip_download": True,  # Skip video download entirely
             "quiet": True,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["web"],
-                    "player_skip": ["configs", "webpage"]
-                }
-            }
+            "no_warnings": False,
         }
         
         if self.cookies_file:
@@ -337,20 +329,17 @@ class YouTubeService:
                     logger.info("Trying to download subtitles", language=lang, subtitle_type=sub_type, attempt=attempt + 1)
                     
                     # Download only this specific language and type
+                    # CRITICAL: Use skip_download without format specification
+                    # This avoids the n-challenge and format selection errors
                     ydl_opts = {
-                        "writesubtitles": (sub_type == 'manual'),  # Only write manual if that's what we want
-                        "writeautomaticsub": (sub_type == 'auto'),  # Only write auto if that's what we want
-                        "subtitleslangs": [lang],  # Only try one language at a time
+                        "writesubtitles": (sub_type == 'manual'),
+                        "writeautomaticsub": (sub_type == 'auto'),
+                        "subtitleslangs": [lang],
                         "subtitlesformat": "vtt",
-                        "skip_download": True,
+                        "skip_download": True,  # Skip video download entirely
                         "outtmpl": str(output_path / f"{video_id}.%(ext)s"),
                         "quiet": True,
-                        "extractor_args": {
-                            "youtube": {
-                                "player_client": ["web"],
-                                "player_skip": ["configs", "webpage"]
-                            }
-                        }
+                        "no_warnings": False,
                     }
 
                     if self.cookies_file:
